@@ -35,7 +35,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
     """
     def __init__(self,
                  params, 
-                 lr, 
+                 lr=1.0, 
                  momentum=0.9, 
                  weight_decay=0,
                  warmup_steps=0,

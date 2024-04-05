@@ -39,7 +39,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
     """
     def __init__(self,
                  params, 
-                 lr=1e-3, 
+                 lr=0.0025, 
                  betas=(0.9, 0.999), 
                  eps=1e-8,
                  weight_decay=0,
