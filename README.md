@@ -5,6 +5,10 @@ Authors: Aaron Defazio, Xingyu Yang, Konstantin Mishchenko, Ashok Cutkosky, Hars
 
 **TLDR** Faster training without schedules - no need to specify the stopping time/steps in advance!
 
+``` pip install schedulefree ```
+
+Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`.
+
 ## Approach
 Schedule-Free learning replaces the momentum of an underlying optimizer with a combination of interpolation and averaging. In the case of gradient descent, the Schedule-free update is:
 
