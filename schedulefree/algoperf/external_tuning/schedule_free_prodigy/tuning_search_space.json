@@ -1,0 +1,7 @@
+[
+    { "weight_decay": 0.3 },
+    { "weight_decay": 0.1 },
+    { "weight_decay": 0.03 },
+    { "weight_decay": 0.01 },
+    { "weight_decay": 0.003 }
+]
