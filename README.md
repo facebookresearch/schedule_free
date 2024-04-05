@@ -31,6 +31,14 @@ Since our optimizer uses two different points for gradient calls and test/val lo
 
 If your code supports PyTorch Optimizer step closures, you can use the closure forms of the optimizers, which do not require the `.train()` and `.eval()` calls.
 
+### Examples
+Examples of using the `schedulefree` package can be found in the `examples` folder. These include:
+- [Image classification (MNIST) using Convnets](./examples/mnist/README.md)*
+- More examples to be added
+
+*Example is modified from [Pytorch Examples Repo](https://github.com/pytorch/examples).
+
+
 ## Caveats 
 - If your model uses BatchNorm, additional modifications are required for test/val evaluations to work correctly. Right before eval, something like the following:
   
