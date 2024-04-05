@@ -22,7 +22,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             Iterable of parameters to optimize or dicts defining 
             parameter groups.
         lr (float): 
-            Learning rate parameter (default 1e-3)
+            Learning rate parameter (default 0.0025)
         betas (Tuple[float, float], optional): coefficients used for computing
             running averages of gradient and its square (default: (0.9, 0.999)).
         eps (float): 

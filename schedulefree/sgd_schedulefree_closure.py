@@ -21,7 +21,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             Iterable of parameters to optimize or dicts defining 
             parameter groups.
         lr (float): 
-            Learning rate parameter (default 1e-3)
+            Learning rate parameter (default 1.0)
         momentum (float): momentum factor, must be between 0 and 1 exclusive
             (default: 0.9)
         weight_decay (float): 
