@@ -49,7 +49,7 @@ Examples of using the `schedulefree` package can be found in the `examples` fold
     _ = self.model(batch)
   model.eval()
 ```
-This will replace the `training_mean`/`training_var` cache (which is updated in each forward pass when in model.train() mode) with values calculated at $x$ instead of $y$. Using PreciseBN will also avoid this isssue.
+This will replace the `training_mean`/`training_var` cache (which is updated in each forward pass when in model.train() mode) with values calculated at $x$ instead of $y$. Using PreciseBN will also avoid this issue.
 
 
  - Many code bases use additional features that may not be compatible without additonal changes. For instance, if the parameters are cached in fp16, the cached versions will need to be updated manually to ensure the correct $x$ sequence is used for evaluation, not the $y$ sequence. Some GradScalers do this.
