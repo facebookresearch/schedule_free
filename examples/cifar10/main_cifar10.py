@@ -56,8 +56,8 @@ class CIFAR10Harness:
         return model
 
     def create_optimizer(self):
-        if self.args.optimizer_variant == 'sgd':
-            print(f'opitmizer params: {args.warmup_steps}, {args.lr}, {args.momentum}, {args.wd}')
+        print(f'Optimizer Variant: {self.args.optimizer_variant}, LR: {self.args.lr}, warmup_steps: {self.args.warmup_steps}, momentum (if SGD): {self.args.momentum} weight_decay: {self.args.wd})
+	if self.args.optimizer_variant == 'sgd':
             self.optimizer = schedulefree.SGDScheduleFree(
                 self.model.parameters(),
                 warmup_steps=self.args.warmup_steps,
