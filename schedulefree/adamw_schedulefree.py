@@ -14,7 +14,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
     To add warmup, rather than using a learning rate schedule you can just
     set the warmup_steps parameter.
     
-    This optimizer requires that .train() and .val() be called before the
+    This optimizer requires that .train() and .eval() be called before the
     beginning of training and evaluation respectively.
     
     Arguments:
