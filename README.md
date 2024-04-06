@@ -73,7 +73,7 @@ Our method is also related to Nesterov's accelerated method (Nesterov, 1983), wh
 $$
 \begin{align*}
 y_{t} & =(1-2/(t+1))x_{t} + (2/(t+1))z_{t}\\
-z_{t+1} & =z_{t}-\frac{k+1}{2L}\nabla f(y_{t})\\
+z_{t+1} & =z_{t}-\frac{t}{2L}\nabla f(y_{t})\\
 x_{t+1} & =(1-2/(t+1))x_{t}+(2/(t+1))z_{t+1}
 \end{align*}
 $$
