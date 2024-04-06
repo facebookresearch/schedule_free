@@ -52,7 +52,7 @@ Examples of using the `schedulefree` package can be found in the `examples` fold
 This will replace the `training_mean`/`training_var` cache (which is updated in each forward pass when in model.train() mode) with values calculated at $x$ instead of $y$. Using PreciseBN will also avoid this issue.
 
 
- - Many code bases use additional features that may not be compatible without additonal changes. For instance, if the parameters are cached in fp16, the cached versions will need to be updated manually to ensure the correct $x$ sequence is used for evaluation, not the $y$ sequence. Some GradScalers do this.
+ - Many code bases use additional features that may not be compatible without additional changes. For instance, if the parameters are cached in fp16, the cached versions will need to be updated manually to ensure the correct $x$ sequence is used for evaluation, not the $y$ sequence. Some GradScalers do this.
  - Training is more sensitive to the choice of $\beta$ than you may expect from standard momentum. Our default of $0.9$ works on most problems but it may be necessary to increase the value to $0.95$ or $0.98$ particually for very long training runs.
  - There is no need to use a learning rate scheduler, however the code is compatible with one.
  - Using learning rate warmup is recommended. This is supported through the `warmup_steps` parameter.
