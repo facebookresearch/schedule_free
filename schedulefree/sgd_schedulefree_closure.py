@@ -32,15 +32,19 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
         weight_lr_power (float): During warmup, the weights in the average will
             be equal to lr raised to this power. Set to 0 for no weighting
             (default 2.0).
+        foreach (bool): Use a foreach-backed implementation of the optimizer.
+            Should be significantly faster, but will have higher peak memory
+            usage (default True).
     """
-    def __init__(self, 
-                 params, 
-                 lr=1.0, 
+    def __init__(self,
+                 params,
+                 lr=1.0,
                  weight_decay=0,
-                 momentum=0.9, 
+                 momentum=0.9,
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2.0,
+                 foreach=True
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -50,8 +54,8 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             raise ValueError("Momentum must be between 0 and 1 exclusive: {}".format(momentum))
 
         defaults = dict(
-            lr=lr, 
-            momentum=momentum, 
+            lr=lr,
+            momentum=momentum,
             weight_decay=weight_decay,
             r=r,
             warmup_steps=warmup_steps,
@@ -59,6 +63,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             weight_sum=0.0,
             weight_lr_power=weight_lr_power,
             lr_max=0.0,
+            foreach=foreach
         )
         super().__init__(params, defaults)
 
@@ -74,14 +79,20 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
 
             for p in group['params']:
                 # State initialization
-                state = self.state[p]
-                if 'z' not in state:
-                    state['z'] = torch.clone(p.data)
+                if 'z' not in self.state[p]:
+                    self.state[p]['z'] = torch.clone(p.data)
 
-                z = state['z']
+            if group['foreach']:
+                y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
 
-                # Extrapolate, replacing p with y temporarily
-                p.data.lerp_(end=z, weight=1-momentum)
+                torch._foreach_lerp_(y, z, weight=1-momentum)
+
+            else:
+                for p in group['params']:
+                    z = self.state[p]['z']
+
+                    # Extrapolate, replacing p with y temporarily
+                    p.data.lerp_(end=z, weight=1-momentum)
 
         # Evaluate gradient at extrapolated point
         loss = closure()
@@ -108,27 +119,45 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
 
             ckp1 = weight/weight_sum
 
-            for p in group['params']:
-                if p.grad is None:
-                    continue
-                grad = p.grad.data
-                y = p.data # Notation to match theory
-                
+            if group['foreach']:
+                y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
+                                   for p in group['params'] if p.grad is not None])
+
                 # Weight decay calculated at y.
                 if weight_decay != 0:
-                    grad.add_(y, alpha=weight_decay)
+                    torch._foreach_add_(grad, y, alpha=weight_decay)
 
-                state = self.state[p]
-                z = state['z']
-                
                 # Unextrapolate, changing p back to x
-                x = y.lerp_(end=z, weight=1-1/momentum)
+                torch._foreach_lerp_(y, z, weight=1-1/momentum)
 
                 # Main step
-                z.data.sub_(grad, alpha=lr)
+                torch._foreach_sub_(z, grad, alpha=lr)
 
                 # x moving average update
-                x.lerp_(end=z, weight=ckp1)
+                torch._foreach_lerp_(y, z, weight=ckp1)
+
+            else:
+                for p in group['params']:
+                    if p.grad is None:
+                        continue
+                    grad = p.grad.data
+                    y = p.data # Notation to match theory
+                    
+                    # Weight decay calculated at y.
+                    if weight_decay != 0:
+                        grad.add_(y, alpha=weight_decay)
+
+                    state = self.state[p]
+                    z = state['z']
+                    
+                    # Unextrapolate, changing p back to x
+                    x = y.lerp_(end=z, weight=1-1/momentum)
+
+                    # Main step
+                    z.data.sub_(grad, alpha=lr)
+
+                    # x moving average update
+                    x.lerp_(end=z, weight=ckp1)
 
             group['k'] = k+1
         return loss
