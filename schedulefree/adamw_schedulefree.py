@@ -36,6 +36,9 @@ class AdamWScheduleFree(torch.optim.Optimizer):
         weight_lr_power (float): During warmup, the weights in the average will
             be equal to lr raised to this power. Set to 0 for no weighting
             (default 2.0).
+        foreach (bool): Use a foreach-backed implementation of the optimizer.
+            Should be significantly faster, but will have higher peak memory
+            usage (default False).
     """
     def __init__(self,
                  params, 
@@ -46,6 +49,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2.0,
+                 foreach=True
                  ):
 
         defaults = dict(lr=lr, 
@@ -58,7 +62,8 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                         weight_sum=0.0,
                         lr_max=-1.0,
                         weight_lr_power=weight_lr_power,
-                        weight_decay=weight_decay)
+                        weight_decay=weight_decay,
+                        foreach=foreach)
         super().__init__(params, defaults)
     
     def eval(self):
@@ -124,39 +129,67 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             if not group['train_mode']:
                 raise Exception("Not in train mode!")
 
-            for p in group['params']:
-                if p.grad is None:
-                    continue
+            if group['foreach']:
+                for p in group['params']:
+                    if 'z' not in self.state[p] and p.grad is not None:
+                        self.state[p]['z'] = torch.clone(p.data)
+                        self.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
 
-                y = p.data # Notation to match theory
-                grad = p.grad.data
-
-                state = self.state[p]
-
-                if 'z' not in state:
-                    state['z'] = torch.clone(y)
-                    state['exp_avg_sq'] = torch.zeros_like(p.data)
-
-                z = state['z']
-                exp_avg_sq = state['exp_avg_sq']
-
-                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1-beta2)
-                denom = exp_avg_sq.sqrt().add_(eps)
-
+                y, grad, exp_avg_sq, z = zip(*[(p.data, p.grad, self.state[p]['exp_avg_sq'], self.state[p]['z']) 
+                                               for p in group['params'] if p.grad is not None])
+    
+                torch._foreach_mul_(exp_avg_sq, beta2)
+                torch._foreach_addcmul_(exp_avg_sq, grad, grad, value=1-beta2)
+                denom = torch._foreach_add_(torch._foreach_sqrt(exp_avg_sq), eps)
+    
                 # Reuse grad buffer for memory efficiency
-                grad_normalized = grad.div_(denom)
-
+                grad_normalized = torch._foreach_div_(grad, denom)
+    
                 # Weight decay calculated at y
                 if decay != 0:
-                    grad_normalized.add_(y, alpha=decay)
-
+                    torch._foreach_add_(grad_normalized, y, alpha=decay)
+    
                 # These operations update y in-place,
                 # without computing x explicitly.
-                y.lerp_(end=z, weight=ckp1)
-                y.add_(grad_normalized, alpha=lr*(beta1*(1-ckp1)-1))
-
+                torch._foreach_lerp_(y, z, weight=ckp1)
+                torch._foreach_add_(y, grad_normalized, alpha=lr*(beta1*(1-ckp1)-1))
+    
                 # z step
-                z.sub_(grad_normalized, alpha=lr)
+                torch._foreach_sub_(z, grad_normalized, alpha=lr)
+            else:
+                for p in group['params']:
+                    if p.grad is None:
+                        continue
+
+                    y = p.data # Notation to match theory
+                    grad = p.grad.data
+
+                    state = self.state[p]
+
+                    if 'z' not in state:
+                        state['z'] = torch.clone(y)
+                        state['exp_avg_sq'] = torch.zeros_like(p.data)
+
+                    z = state['z']
+                    exp_avg_sq = state['exp_avg_sq']
+
+                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1-beta2)
+                    denom = exp_avg_sq.sqrt().add_(eps)
+
+                    # Reuse grad buffer for memory efficiency
+                    grad_normalized = grad.div_(denom)
+
+                    # Weight decay calculated at y
+                    if decay != 0:
+                        grad_normalized.add_(y, alpha=decay)
+
+                    # These operations update y in-place,
+                    # without computing x explicitly.
+                    y.lerp_(end=z, weight=ckp1)
+                    y.add_(grad_normalized, alpha=lr*(beta1*(1-ckp1)-1))
+
+                    # z step
+                    z.sub_(grad_normalized, alpha=lr)
 
             group['k'] = k+1
         return loss
