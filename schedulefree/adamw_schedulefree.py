@@ -140,10 +140,10 @@ class AdamWScheduleFree(torch.optim.Optimizer):
     
                 torch._foreach_mul_(exp_avg_sq, beta2)
                 torch._foreach_addcmul_(exp_avg_sq, grad, grad, value=1-beta2)
-                denom = torch._foreach_add_(torch._foreach_sqrt(exp_avg_sq), eps)
+                denom = torch._foreach_add(torch._foreach_sqrt(exp_avg_sq), eps)
     
                 # Reuse grad buffer for memory efficiency
-                grad_normalized = torch._foreach_div_(grad, denom)
+                grad_normalized = torch._foreach_div(grad, denom)
     
                 # Weight decay calculated at y
                 if decay != 0:
