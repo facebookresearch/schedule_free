@@ -38,7 +38,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             (default 2.0).
         foreach (bool): Use a foreach-backed implementation of the optimizer.
             Should be significantly faster, but will have higher peak memory
-            usage (default False).
+            usage (default True).
     """
     def __init__(self,
                  params, 
