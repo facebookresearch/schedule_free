@@ -32,6 +32,9 @@ class SGDScheduleFree(torch.optim.Optimizer):
         weight_lr_power (float): During warmup, the weights in the average will
             be equal to lr raised to this power. Set to 0 for no weighting
             (default 2.0).
+        foreach (bool): Use a foreach-backed implementation of the optimizer.
+            Should be significantly faster, but will have higher peak memory
+            usage (default True).
     """
     def __init__(self,
                  params, 
@@ -41,6 +44,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2,
+                 foreach=True,
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -58,7 +62,8 @@ class SGDScheduleFree(torch.optim.Optimizer):
                         weight_sum=0.0,
                         lr_max=-1.0,
                         weight_lr_power=weight_lr_power,
-                        weight_decay=weight_decay)
+                        weight_decay=weight_decay,
+                        foreach=foreach)
         super().__init__(params, defaults)
     
     def eval(self):
@@ -124,30 +129,45 @@ class SGDScheduleFree(torch.optim.Optimizer):
                 raise Exception("Not in train mode!")
 
             for p in group['params']:
-                if p.grad is None:
-                    continue
+                if p.grad is not None and 'z' not in self.state[p]:
+                    self.state[p]['z'] = torch.clone(p.data)
 
-                y = p.data # Notation to match theory
-                grad = p.grad.data
-
-                state = self.state[p]
-
-                if 'z' not in state:
-                    state['z'] = torch.clone(y)
-
-                z = state['z']
+            if group['foreach']:
+                y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
+                                   for p in group['params'] if p.grad is not None])
 
                 # Apply weight decay
                 if weight_decay != 0:
-                    grad.add_(y, alpha=weight_decay)
+                    torch._foreach_add_(grad, y, alpha=weight_decay)
 
                 # These operations update y in-place,
                 # without computing x explicitly.
-                y.lerp_(end=z, weight=ckp1)
-                y.add_(grad, alpha=lr*(momentum*(1-ckp1)-1))
+                torch._foreach_lerp_(y, z, weight=ckp1)
+                torch._foreach_add_(y, grad, alpha=lr*(momentum*(1-ckp1)-1))
 
                 # SGD step
-                z.sub_(grad, alpha=lr)
+                torch._foreach_sub_(z, grad, alpha=lr)
+
+            else:
+                for p in group['params']:
+                    if p.grad is None:
+                        continue
+
+                    y = p.data # Notation to match theory
+                    grad = p.grad.data
+                    z = self.state[p]['z']
+
+                    # Apply weight decay
+                    if weight_decay != 0:
+                        grad.add_(y, alpha=weight_decay)
+
+                    # These operations update y in-place,
+                    # without computing x explicitly.
+                    y.lerp_(end=z, weight=ckp1)
+                    y.add_(grad, alpha=lr*(momentum*(1-ckp1)-1))
+
+                    # SGD step
+                    z.sub_(grad, alpha=lr)
 
             group['k'] = k+1
         return loss
