@@ -129,33 +129,34 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             if not group['train_mode']:
                 raise Exception("Not in train mode!")
 
-            if group['foreach']:
-                for p in group['params']:
-                    if 'z' not in self.state[p] and p.grad is not None:
-                        self.state[p]['z'] = torch.clone(p.data)
-                        self.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
+            for p in group['params']:
+                if 'z' not in self.state[p] and p.grad is not None:
+                    self.state[p]['z'] = torch.clone(p.data)
+                    self.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
 
+            if group['foreach']:
                 y, grad, exp_avg_sq, z = zip(*[(p.data, p.grad, self.state[p]['exp_avg_sq'], self.state[p]['z']) 
                                                for p in group['params'] if p.grad is not None])
-    
+
                 torch._foreach_mul_(exp_avg_sq, beta2)
                 torch._foreach_addcmul_(exp_avg_sq, grad, grad, value=1-beta2)
-                denom = torch._foreach_add(torch._foreach_sqrt(exp_avg_sq), eps)
-    
-                # Reuse grad buffer for memory efficiency
-                grad_normalized = torch._foreach_div(grad, denom)
-    
+                denom = torch._foreach_sqrt(exp_avg_sq)
+                torch._foreach_add_(denom, eps)
+
+                # Normalize grad in-place for memory efficiency
+                torch._foreach_div_(grad, denom)
+
                 # Weight decay calculated at y
                 if decay != 0:
-                    torch._foreach_add_(grad_normalized, y, alpha=decay)
-    
+                    torch._foreach_add_(grad, y, alpha=decay)
+
                 # These operations update y in-place,
                 # without computing x explicitly.
                 torch._foreach_lerp_(y, z, weight=ckp1)
-                torch._foreach_add_(y, grad_normalized, alpha=lr*(beta1*(1-ckp1)-1))
-    
+                torch._foreach_add_(y, grad, alpha=lr*(beta1*(1-ckp1)-1))
+
                 # z step
-                torch._foreach_sub_(z, grad_normalized, alpha=lr)
+                torch._foreach_sub_(z, grad, alpha=lr)
             else:
                 for p in group['params']:
                     if p.grad is None:
@@ -165,10 +166,6 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                     grad = p.grad.data
 
                     state = self.state[p]
-
-                    if 'z' not in state:
-                        state['z'] = torch.clone(y)
-                        state['exp_avg_sq'] = torch.zeros_like(p.data)
 
                     z = state['z']
                     exp_avg_sq = state['exp_avg_sq']
