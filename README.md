@@ -45,8 +45,9 @@ Examples of using the `schedulefree` package can be found in the `examples` fold
  ```python
   model.train()
   optimizer.eval()
-  for batch in itertools.islice(train_loader, 50):
-    _ = self.model(batch)
+  with torch.no_grad():
+    for batch in itertools.islice(train_loader, 50):
+      self.model(batch)
   model.eval()
 ```
 This will replace the `training_mean`/`training_var` cache (which is updated in each forward pass when in model.train() mode) with values calculated at $x$ instead of $y$. Using PreciseBN will also avoid this issue.
