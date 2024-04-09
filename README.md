@@ -69,7 +69,7 @@ See the [License file](/LICENSE).
 
 Schedule-Free learning can be seen as an interpolation between primal averaging ($\beta=1$) and Polyak-Ruppert averaging ($\beta=0)$. The advantage of this interpolation is that it allows us to get the best of both worlds. We can achieve the fast early stage convergence of Polyak-Ruppert averaging (since the $z$ sequence moves quicker than the $x$ sequence), without the $x$ sequence straying too far from the $z$ sequence, which causes instability.
 
-Our method is also related to Nesterov's accelerated method (Nesterov, 1983), which can be written in the following form:
+Our method is also related to Nesterov's accelerated method (Nesterov, 1983) in AC-SA form (Ghadimi & Lan 2010):
 
 $$
 \begin{align*}
