@@ -124,7 +124,10 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             weight = ((k+1)**r) * (lr_max**weight_lr_power)
             weight_sum = group['weight_sum'] = group['weight_sum'] + weight
 
-            ckp1 = weight/weight_sum
+            try:
+                ckp1 = weight/weight_sum
+            except ZeroDivisionError:
+                ckp1 = 0
 
             if not group['train_mode']:
                 raise Exception("Not in train mode!")

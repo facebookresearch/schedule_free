@@ -120,7 +120,10 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
             weight = ((k+1)**r) * (lr_max**weight_lr_power)
             weight_sum = group['weight_sum'] = group['weight_sum'] + weight
 
-            ckp1 = weight/weight_sum
+            try:
+                ckp1 = weight/weight_sum
+            except ZeroDivisionError:
+                ckp1 = 0
 
             if group['foreach']:
                 y, grad, exp_avg_sq, z = zip(*[(p.data, p.grad, self.state[p]['exp_avg_sq'], self.state[p]['z']) 
