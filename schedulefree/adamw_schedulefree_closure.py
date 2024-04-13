@@ -47,7 +47,7 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0,
                  weight_lr_power=2.0,
-                 foreach=True
+                 foreach=False
                  ):
         defaults = dict(lr=lr,
                         betas=betas,
