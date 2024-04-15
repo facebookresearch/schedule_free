@@ -125,25 +125,24 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
 
             active_p = [p for p in group['params'] if p.grad is not None]
 
-            if group['foreach']:
-                if len(active_p) > 0:
-                    y, grad, z = zip(*[(p.data, 
-                                        p.grad, 
-                                        self.state[p]['z']) 
-                                        for p in active_p])
+            if group['foreach'] and len(active_p) > 0:
+                y, grad, z = zip(*[(p.data, 
+                                    p.grad, 
+                                    self.state[p]['z']) 
+                                    for p in active_p])
 
-                    # Weight decay calculated at y.
-                    if weight_decay != 0:
-                        torch._foreach_add_(grad, y, alpha=weight_decay)
+                # Weight decay calculated at y.
+                if weight_decay != 0:
+                    torch._foreach_add_(grad, y, alpha=weight_decay)
 
-                    # Unextrapolate, changing p back to x
-                    torch._foreach_lerp_(y, z, weight=1-1/momentum)
+                # Unextrapolate, changing p back to x
+                torch._foreach_lerp_(y, z, weight=1-1/momentum)
 
-                    # Main step
-                    torch._foreach_sub_(z, grad, alpha=lr)
+                # Main step
+                torch._foreach_sub_(z, grad, alpha=lr)
 
-                    # x moving average update
-                    torch._foreach_lerp_(y, z, weight=ckp1)
+                # x moving average update
+                torch._foreach_lerp_(y, z, weight=ckp1)
             else:
                 for p in active_p:
                     grad = p.grad.data

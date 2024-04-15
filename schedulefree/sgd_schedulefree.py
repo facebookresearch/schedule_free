@@ -137,22 +137,21 @@ class SGDScheduleFree(torch.optim.Optimizer):
                 if 'z' not in self.state[p]:
                     self.state[p]['z'] = torch.clone(p.data)
 
-            if group['foreach']:
-                if len(active_p) > 0:
-                    y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
-                                    for p in active_p])
+            if group['foreach'] and len(active_p) > 0:
+                y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
+                                for p in active_p])
 
-                    # Apply weight decay
-                    if weight_decay != 0:
-                        torch._foreach_add_(grad, y, alpha=weight_decay)
+                # Apply weight decay
+                if weight_decay != 0:
+                    torch._foreach_add_(grad, y, alpha=weight_decay)
 
-                    # These operations update y in-place,
-                    # without computing x explicitly.
-                    torch._foreach_lerp_(y, z, weight=ckp1)
-                    torch._foreach_add_(y, grad, alpha=lr*(momentum*(1-ckp1)-1))
+                # These operations update y in-place,
+                # without computing x explicitly.
+                torch._foreach_lerp_(y, z, weight=ckp1)
+                torch._foreach_add_(y, grad, alpha=lr*(momentum*(1-ckp1)-1))
 
-                    # SGD step
-                    torch._foreach_sub_(z, grad, alpha=lr)
+                # SGD step
+                torch._foreach_sub_(z, grad, alpha=lr)
             else:
                 for p in active_p:
                     y = p.data # Notation to match theory
