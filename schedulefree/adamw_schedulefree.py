@@ -49,7 +49,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2.0,
-                 foreach=False
+                 foreach=True
                  ):
 
         defaults = dict(lr=lr, 

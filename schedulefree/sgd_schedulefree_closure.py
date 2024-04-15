@@ -44,7 +44,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2.0,
-                 foreach=False
+                 foreach=True
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
