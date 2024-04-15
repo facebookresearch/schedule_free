@@ -84,10 +84,10 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
 
             if group['foreach']:
-                y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
+                if len(group['params']) > 0:
+                    y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
 
-                torch._foreach_lerp_(y, z, weight=1-beta1)
-
+                    torch._foreach_lerp_(y, z, weight=1-beta1)
             else:
                 for p in group['params']:
                     z = self.state[p]['z']
@@ -125,35 +125,38 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
             except ZeroDivisionError:
                 ckp1 = 0
 
+            active_p = [p for p in group['params'] if p.grad is not None]
+
             if group['foreach']:
-                y, grad, exp_avg_sq, z = zip(*[(p.data, p.grad, self.state[p]['exp_avg_sq'], self.state[p]['z']) 
-                                               for p in group['params'] if p.grad is not None])
+                if len(active_p) > 0:
+                    y, grad, exp_avg_sq, z = zip(*[(p.data, 
+                                                    p.grad, 
+                                                    self.state[p]['exp_avg_sq'], 
+                                                    self.state[p]['z']) 
+                                                    for p in active_p])
 
-                # Decay the first and second moment running average coefficient
-                torch._foreach_mul_(exp_avg_sq, beta2)
-                torch._foreach_addcmul_(exp_avg_sq, grad, grad, value=1-beta2)
-                denom = torch._foreach_sqrt(exp_avg_sq)
-                torch._foreach_add_(denom, eps)
+                    # Decay the first and second moment running average coefficient
+                    torch._foreach_mul_(exp_avg_sq, beta2)
+                    torch._foreach_addcmul_(exp_avg_sq, grad, grad, value=1-beta2)
+                    denom = torch._foreach_sqrt(exp_avg_sq)
+                    torch._foreach_add_(denom, eps)
 
-                # normalize grad in-place
-                torch._foreach_div_(grad, denom)
+                    # normalize grad in-place
+                    torch._foreach_div_(grad, denom)
 
-                # Weight decay calculated at y
-                if decay != 0:
-                    torch._foreach_add_(grad, y, alpha=decay)
+                    # Weight decay calculated at y
+                    if decay != 0:
+                        torch._foreach_add_(grad, y, alpha=decay)
 
-                # Unextrapolate
-                torch._foreach_lerp_(y, z, weight=1-1/beta1)
+                    # Unextrapolate
+                    torch._foreach_lerp_(y, z, weight=1-1/beta1)
 
-                torch._foreach_sub_(z, grad, alpha=lr)
+                    torch._foreach_sub_(z, grad, alpha=lr)
 
-                ### Take step
-                torch._foreach_lerp_(y, z, weight=ckp1)
-
+                    ### Take step
+                    torch._foreach_lerp_(y, z, weight=ckp1)
             else:
-                for p in group['params']:
-                    if p.grad is None:
-                        continue
+                for p in active_p:
                     grad = p.grad.data
                     y = p.data # Notation to match theory
                     

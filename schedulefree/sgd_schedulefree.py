@@ -131,31 +131,30 @@ class SGDScheduleFree(torch.optim.Optimizer):
             if not group['train_mode']:
                 raise Exception("Not in train mode!")
 
-            for p in group['params']:
-                if p.grad is not None and 'z' not in self.state[p]:
+            active_p = [p for p in group['params'] if p.grad is not None]
+
+            for p in active_p:
+                if 'z' not in self.state[p]:
                     self.state[p]['z'] = torch.clone(p.data)
 
             if group['foreach']:
-                y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
-                                   for p in group['params'] if p.grad is not None])
+                if len(active_p) > 0:
+                    y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
+                                    for p in active_p])
 
-                # Apply weight decay
-                if weight_decay != 0:
-                    torch._foreach_add_(grad, y, alpha=weight_decay)
+                    # Apply weight decay
+                    if weight_decay != 0:
+                        torch._foreach_add_(grad, y, alpha=weight_decay)
 
-                # These operations update y in-place,
-                # without computing x explicitly.
-                torch._foreach_lerp_(y, z, weight=ckp1)
-                torch._foreach_add_(y, grad, alpha=lr*(momentum*(1-ckp1)-1))
+                    # These operations update y in-place,
+                    # without computing x explicitly.
+                    torch._foreach_lerp_(y, z, weight=ckp1)
+                    torch._foreach_add_(y, grad, alpha=lr*(momentum*(1-ckp1)-1))
 
-                # SGD step
-                torch._foreach_sub_(z, grad, alpha=lr)
-
+                    # SGD step
+                    torch._foreach_sub_(z, grad, alpha=lr)
             else:
-                for p in group['params']:
-                    if p.grad is None:
-                        continue
-
+                for p in active_p:
                     y = p.data # Notation to match theory
                     grad = p.grad.data
                     z = self.state[p]['z']
