@@ -33,7 +33,7 @@ If your code supports PyTorch Optimizer step closures, you can use the closure f
 
 ### Examples
 Examples of using the `schedulefree` package can be found in the `examples` folder. These include:
-- [Image classification (MNIST) using Convnets](./examples/mnist/README.md)*
+- [Image classification (MNIST) using Convnets](./examples/mnist/)*
 - More examples to be added
 
 *Example is modified from [Pytorch Examples Repo](https://github.com/pytorch/examples).
@@ -47,20 +47,20 @@ Examples of using the `schedulefree` package can be found in the `examples` fold
   optimizer.eval()
   with torch.no_grad():
     for batch in itertools.islice(train_loader, 50):
-      self.model(batch)
+      model(batch)
   model.eval()
 ```
 This will replace the `training_mean`/`training_var` cache (which is updated in each forward pass when in model.train() mode) with values calculated at $x$ instead of $y$. Using PreciseBN will also avoid this issue.
 
 
  - Many code bases use additional features that may not be compatible without additional changes. For instance, if the parameters are cached in fp16, the cached versions will need to be updated manually to ensure the correct $x$ sequence is used for evaluation, not the $y$ sequence. Some GradScalers do this.
- - Training is more sensitive to the choice of $\beta$ than you may expect from standard momentum. Our default of $0.9$ works on most problems but it may be necessary to increase the value to $0.95$ or $0.98$ particually for very long training runs.
+ - Training is more sensitive to the choice of $\beta$ than you may expect from standard momentum. Our default of $0.9$ works on most problems but it may be necessary to increase the value to $0.95$ or $0.98$ particularly for very long training runs.
  - There is no need to use a learning rate scheduler, however the code is compatible with one.
  - Using learning rate warmup is recommended. This is supported through the `warmup_steps` parameter.
  - This method does require tuning - it won't necessarily out-perform a schedule approach without also tuning regularization and learning rate parameters.
  - For SGD, a learning rate 10x-50x larger than classical rates seems to be a good starting point.
- - For AdamW, learnings rates in the range 1x-10x larger than with schedule based approaches seem to work.
- - Our method can also be implemented as a wrapper around a base optimizer, where the momentum of the base optimizer is disabled. We didn't do that as PyTorch's Adam implementation would still allocate memory for it's momentum buffer `exp_avg` even if we don't use it.
+ - For AdamW, learning rates in the range 1x-10x larger than with schedule-based approaches seem to work.
+ - Our method can also be implemented as a wrapper around a base optimizer, where the momentum of the base optimizer is disabled. We didn't do that as PyTorch's Adam implementation would still allocate memory for its momentum buffer `exp_avg` even if we don't use it.
 
 # License
 See the [License file](/LICENSE).
@@ -83,6 +83,6 @@ Our approach has the same three sequences, but uses very different weights, and 
 
 Tail averaging approaches such as Stochastic Weight Averaging (Izmailov et al., 2018) and LAtest Weight Averaging (Kaddour, 2022; Sanyal et al., 2023) combine averaging with large or cyclic learning rates. They still require the use of a schedule, introduce additional hyper-parameters to tune, and require additional memory compared to our technique. It is also possible to use SWA and LAWA on top of our approach, potentially giving further gains.
 
-Portes Et. Al. (2022) use cyclic learning rate schedules with increasing cycle periods to give a method that explores multiple points along the Pareto frontier of training time vs eval performance. Each point at the end of a cycle is an approximation to the model from a tuned schedule ending at that time. Our method gives the entire frontier, rather than just a few points along the path.
+Portes et al. (2022) use cyclic learning rate schedules with increasing cycle periods to give a method that explores multiple points along the Pareto frontier of training time vs eval performance. Each point at the end of a cycle is an approximation to the model from a tuned schedule ending at that time. Our method gives the entire frontier, rather than just a few points along the path.
 
 Exponential moving averages (EMA) of the iterate sequence are used in the popular Lookahead optimizer (Zhang et al., 2019). The Lookahead method can be seen as the EMA version of primal averaging, just as exponential weight averaging is the EMA version of Polyak-Ruppert averaging. Our extra interpolation step can potentially be used in combination with the lookahead optimizer also.
