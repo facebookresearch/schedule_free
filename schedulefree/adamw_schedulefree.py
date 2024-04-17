@@ -58,7 +58,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                         r=r,
                         k=0,
                         warmup_steps=warmup_steps,
-                        train_mode = True,
+                        train_mode=True,
                         weight_sum=0.0,
                         lr_max=-1.0,
                         weight_lr_power=weight_lr_power,
