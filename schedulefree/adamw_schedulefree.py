@@ -49,7 +49,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2.0,
-                 foreach=False
+                 foreach=True
                  ):
 
         defaults = dict(lr=lr, 
@@ -132,15 +132,21 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             if not group['train_mode']:
                 raise Exception("Not in train mode!")
 
-            for p in group['params']:
-                if 'z' not in self.state[p] and p.grad is not None:
+            active_p = [p for p in group['params'] if p.grad is not None]
+            
+            for p in active_p:
+                if 'z' not in self.state[p]:
                     self.state[p]['z'] = torch.clone(p.data)
                     self.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
 
-            if group['foreach']:
-                y, grad, exp_avg_sq, z = zip(*[(p.data, p.grad, self.state[p]['exp_avg_sq'], self.state[p]['z']) 
-                                               for p in group['params'] if p.grad is not None])
+            if group['foreach'] and len(active_p) > 0:
+                y, grad, exp_avg_sq, z = zip(*[(p.data, 
+                                                p.grad, 
+                                                self.state[p]['exp_avg_sq'], 
+                                                self.state[p]['z']) 
+                                                for p in active_p])
 
+                # Decay the first and second moment running average coefficient
                 torch._foreach_mul_(exp_avg_sq, beta2)
                 torch._foreach_addcmul_(exp_avg_sq, grad, grad, value=1-beta2)
                 denom = torch._foreach_sqrt(exp_avg_sq)
@@ -161,10 +167,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 # z step
                 torch._foreach_sub_(z, grad, alpha=lr)
             else:
-                for p in group['params']:
-                    if p.grad is None:
-                        continue
-
+                for p in active_p:
                     y = p.data # Notation to match theory
                     grad = p.grad.data
 

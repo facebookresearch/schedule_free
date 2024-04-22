@@ -98,6 +98,59 @@ def test_schedulefree_adam():
 
                 assert torch.allclose(y, y_closure)
 
+def test_foreach():
+    decay = 0.5
+    warmup = 5
+    weight_foreach = torch.randn(3, 2).cuda().requires_grad_()
+    weight_foreach2 = torch.randn(1, 1).cuda().requires_grad_()
+    weight_foreach_nograd = torch.randn(1, 2).cuda().requires_grad_()
+
+    weight = torch.clone(weight_foreach.data).requires_grad_()
+    weight2 = torch.clone(weight_foreach2.data).requires_grad_()
+    weight_nograd = torch.clone(weight_foreach_nograd.data).requires_grad_()
+    optimizer_foreach = AdamWScheduleFree([
+        {'params': [weight_foreach, weight_foreach2]},
+        {'params': [weight_foreach_nograd]},
+        {'params': []}], 
+        lr=0.3, warmup_steps=warmup, weight_decay=decay, foreach=True)
+    optimizer = AdamWScheduleFree([
+        {'params': [weight, weight2]},
+        {'params': [weight_nograd]},
+        {'params': []}], lr=0.3, warmup_steps=warmup, weight_decay=decay, foreach=False)
+
+    for step_idx in range(50):
+        optimizer.train()
+        grad = torch.rand_like(weight)
+        grad2 = torch.rand_like(weight2)
+
+        weight.grad = torch.clone(grad)
+        weight2.grad = torch.clone(grad2)
+        weight_foreach.grad = torch.clone(grad)
+        weight_foreach2.grad = torch.clone(grad2)
+
+        optimizer.step()
+        optimizer_foreach.step()
+
+        optimizer.eval()
+        optimizer_foreach.eval()
+
+        for group_foreach, group in zip(optimizer_foreach.param_groups, optimizer.param_groups):
+            for p_foreach, p in zip(group_foreach['params'], group['params']):
+                if p.grad is not None or p_foreach.grad is not None:
+                    state_foreach = optimizer_foreach.state[p_foreach]
+                    state = optimizer.state[p]
+                    z_foreach = state_foreach['z']
+                    z = state['z']
+
+                    assert torch.allclose(p, p_foreach)
+                    assert torch.allclose(z, z_foreach)
+    
+        optimizer.train()
+        optimizer_foreach.train()
+
+
 if __name__ == "__main__":
+    test_foreach()
+
     test_schedulefree_adam()
     test_schedulefree_sgd()

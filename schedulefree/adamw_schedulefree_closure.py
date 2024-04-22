@@ -47,7 +47,7 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0,
                  weight_lr_power=2.0,
-                 foreach=False
+                 foreach=True
                  ):
         defaults = dict(lr=lr,
                         betas=betas,
@@ -84,10 +84,10 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
 
             if group['foreach']:
-                y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
+                if len(group['params']) > 0:
+                    y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
 
-                torch._foreach_lerp_(y, z, weight=1-beta1)
-
+                    torch._foreach_lerp_(y, z, weight=1-beta1)
             else:
                 for p in group['params']:
                     z = self.state[p]['z']
@@ -125,9 +125,14 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
             except ZeroDivisionError:
                 ckp1 = 0
 
-            if group['foreach']:
-                y, grad, exp_avg_sq, z = zip(*[(p.data, p.grad, self.state[p]['exp_avg_sq'], self.state[p]['z']) 
-                                               for p in group['params'] if p.grad is not None])
+            active_p = [p for p in group['params'] if p.grad is not None]
+
+            if group['foreach'] and len(active_p) > 0:
+                y, grad, exp_avg_sq, z = zip(*[(p.data, 
+                                                p.grad, 
+                                                self.state[p]['exp_avg_sq'], 
+                                                self.state[p]['z']) 
+                                                for p in active_p])
 
                 # Decay the first and second moment running average coefficient
                 torch._foreach_mul_(exp_avg_sq, beta2)
@@ -149,11 +154,8 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
 
                 ### Take step
                 torch._foreach_lerp_(y, z, weight=ckp1)
-
             else:
-                for p in group['params']:
-                    if p.grad is None:
-                        continue
+                for p in active_p:
                     grad = p.grad.data
                     y = p.data # Notation to match theory
                     

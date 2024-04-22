@@ -44,7 +44,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2,
-                 foreach=False,
+                 foreach=True,
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -131,13 +131,15 @@ class SGDScheduleFree(torch.optim.Optimizer):
             if not group['train_mode']:
                 raise Exception("Not in train mode!")
 
-            for p in group['params']:
-                if p.grad is not None and 'z' not in self.state[p]:
+            active_p = [p for p in group['params'] if p.grad is not None]
+
+            for p in active_p:
+                if 'z' not in self.state[p]:
                     self.state[p]['z'] = torch.clone(p.data)
 
-            if group['foreach']:
+            if group['foreach'] and len(active_p) > 0:
                 y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
-                                   for p in group['params'] if p.grad is not None])
+                                for p in active_p])
 
                 # Apply weight decay
                 if weight_decay != 0:
@@ -150,12 +152,8 @@ class SGDScheduleFree(torch.optim.Optimizer):
 
                 # SGD step
                 torch._foreach_sub_(z, grad, alpha=lr)
-
             else:
-                for p in group['params']:
-                    if p.grad is None:
-                        continue
-
+                for p in active_p:
                     y = p.data # Notation to match theory
                     grad = p.grad.data
                     z = self.state[p]['z']

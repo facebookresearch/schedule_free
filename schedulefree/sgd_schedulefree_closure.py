@@ -44,7 +44,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2.0,
-                 foreach=False
+                 foreach=True
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -83,9 +83,10 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                     self.state[p]['z'] = torch.clone(p.data)
 
             if group['foreach']:
-                y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
+                if len(group['params']) > 0:
+                    y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
 
-                torch._foreach_lerp_(y, z, weight=1-momentum)
+                    torch._foreach_lerp_(y, z, weight=1-momentum)
 
             else:
                 for p in group['params']:
@@ -122,9 +123,13 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             except ZeroDivisionError:
                 ckp1 = 0
 
-            if group['foreach']:
-                y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
-                                   for p in group['params'] if p.grad is not None])
+            active_p = [p for p in group['params'] if p.grad is not None]
+
+            if group['foreach'] and len(active_p) > 0:
+                y, grad, z = zip(*[(p.data, 
+                                    p.grad, 
+                                    self.state[p]['z']) 
+                                    for p in active_p])
 
                 # Weight decay calculated at y.
                 if weight_decay != 0:
@@ -138,11 +143,8 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
 
                 # x moving average update
                 torch._foreach_lerp_(y, z, weight=ckp1)
-
             else:
-                for p in group['params']:
-                    if p.grad is None:
-                        continue
+                for p in active_p:
                     grad = p.grad.data
                     y = p.data # Notation to match theory
                     
