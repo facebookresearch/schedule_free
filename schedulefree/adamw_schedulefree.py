@@ -133,7 +133,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 raise Exception("Not in train mode!")
 
             active_p = [p for p in group['params'] if p.grad is not None]
-
+            
             for p in active_p:
                 if 'z' not in self.state[p]:
                     self.state[p]['z'] = torch.clone(p.data)
