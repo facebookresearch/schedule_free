@@ -11,7 +11,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="schedulefree",
-    version="1.2.4",
+    version="1.2.5",
     author="Aaron Defazio",
     author_email="adefazio@meta.com",
     description="Schedule Free Learning in PyTorch",
