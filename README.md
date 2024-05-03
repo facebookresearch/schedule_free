@@ -1,7 +1,7 @@
 # Schedule-Free Learning - A New Way to Train
 Schedule-Free Optimizers in PyTorch.
 
-Authors: Aaron Defazio, Xingyu Yang, Konstantin Mishchenko, Ashok Cutkosky, Harsh Mehta, Ahmed Khaled
+Authors: Aaron Defazio, Xingyu (Alice) Yang, Konstantin Mishchenko, Ashok Cutkosky, Harsh Mehta, Ahmed Khaled
 
 **TLDR** Faster training without schedules - no need to specify the stopping time/steps in advance!
 
