@@ -27,7 +27,7 @@ As the name suggests, Schedule-free learning does not require a decreasing learn
 We provide both AdamW and SGD versions in this repo.
 
 ## How to Use
-Since our optimizer uses two different points for gradient calls and test/val loss calculations, it's necessary to switch the param buffer between the two during training. This is done by calling `optimizer.train()` at the same place you call `model.train()` and `optimizer.eval()` at the same place you call `model.eval()`.
+Since our optimizer uses two different points for gradient calls and test/val loss calculations, it's necessary to switch the param buffer between the two during training. This is done by calling `optimizer.train()` at the same place you call `model.train()` and `optimizer.eval()` at the same place you call `model.eval()`. The optimizer should also be placed in eval mode when storing checkpoints.
 
 If your code supports PyTorch Optimizer step closures, you can use the closure forms of the optimizers, which do not require the `.train()` and `.eval()` calls.
 

@@ -14,7 +14,8 @@ class SGDScheduleFree(torch.optim.Optimizer):
     set the warmup_steps parameter.
 
     This optimizer requires that .train() and .eval() be called before the
-    beginning of training and evaluation respectively.
+    beginning of training and evaluation respectively. The optimizer should
+    also be placed in eval mode when saving checkpoints.
     
     Arguments:
         params (iterable): 
