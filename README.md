@@ -1,7 +1,7 @@
 # Schedule-Free Learning
 Schedule-Free Optimizers in PyTorch.
 
-(Preprint)[https://arxiv.org/abs/2405.15682]
+[Preprint](https://arxiv.org/abs/2405.15682)
 
 Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko, Ahmed Khaled, Ashok Cutkosky
 
@@ -34,7 +34,7 @@ Since our optimizer uses two different points for gradient calls and test/val lo
 If your code supports PyTorch Optimizer step closures, you can use the closure forms of the optimizers, which do not require the `.train()` and `.eval()` calls.
 
 ## Paper
-If you use Schedule-Free training in your work, please cite our (preprint)[https://arxiv.org/abs/2405.15682] as:
+If you use Schedule-Free training in your work, please cite our [preprint](https://arxiv.org/abs/2405.15682) as:
 ```
 @misc{defazio2024road,
       title={The Road Less Scheduled}, 
