@@ -5,5 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 from .adamw_schedulefree_closure import AdamWScheduleFreeClosure
 from .adamw_schedulefree import AdamWScheduleFree
+from .adamw_schedulefree_reference import AdamWScheduleFreeReference
 from .sgd_schedulefree_closure import SGDScheduleFreeClosure
 from .sgd_schedulefree import SGDScheduleFree
