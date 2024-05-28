@@ -1,7 +1,9 @@
-# Schedule-Free Learning - A New Way to Train
+# Schedule-Free Learning
 Schedule-Free Optimizers in PyTorch.
 
-Authors: Aaron Defazio, Xingyu (Alice) Yang, Konstantin Mishchenko, Ashok Cutkosky, Harsh Mehta, Ahmed Khaled
+(Preprint)[https://arxiv.org/abs/2405.15682]
+
+Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko, Ahmed Khaled, Ashok Cutkosky
 
 **TLDR** Faster training without schedules - no need to specify the stopping time/steps in advance!
 
@@ -10,19 +12,19 @@ Authors: Aaron Defazio, Xingyu (Alice) Yang, Konstantin Mishchenko, Ashok Cutkos
 Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`.
 
 ## Approach
-Schedule-Free learning replaces the momentum of an underlying optimizer with a combination of interpolation and averaging. In the case of gradient descent, the Schedule-free update is:
+Schedule-Free learning replaces the momentum of an underlying optimizer with a combination of interpolation and averaging. In the case of gradient descent, the Schedule-Free update is:
 
 $$
 \begin{align*}
 y_{t} & = (1-\beta)z_{t} + \beta x_{t},\\
 z_{t+1} & =z_{t}-\gamma\nabla f(y_{t}),\\
-x_{t+1} & =\left(1-\frac{1}{t}\right)x_{t}+\frac{1}{t}z_{t+1},
+x_{t+1} & =\left(1-\frac{1}{t+1}\right)x_{t}+\frac{1}{t+1}z_{t+1},
 \end{align*}
 $$
 
 Here $x$ is the sequence that evaluations of test/val loss should occur at, which differs from the primary iterates $z$ and the gradient evaluation locations $y$. The updates to $z$ correspond to the underlying optimizer, in this case a simple gradient step.
 
-As the name suggests, Schedule-free learning does not require a decreasing learning rate schedule, yet typically out-performs, or at worst matches, SOTA schedules such as cosine-decay and linear decay. Only two sequences need to be stored at a time (the third can be computed from the other two on the fly) so this method has the same memory requirements as the base optimizer (parameter buffer + momentum).
+As the name suggests, Schedule-Free learning does not require a decreasing learning rate schedule, yet typically out-performs, or at worst matches, SOTA schedules such as cosine-decay and linear decay. Only two sequences need to be stored at a time (the third can be computed from the other two on the fly) so this method has the same memory requirements as the base optimizer (parameter buffer + momentum).
 
 We provide both AdamW and SGD versions in this repo.
 
@@ -30,6 +32,19 @@ We provide both AdamW and SGD versions in this repo.
 Since our optimizer uses two different points for gradient calls and test/val loss calculations, it's necessary to switch the param buffer between the two during training. This is done by calling `optimizer.train()` at the same place you call `model.train()` and `optimizer.eval()` at the same place you call `model.eval()`. The optimizer should also be placed in eval mode when storing checkpoints.
 
 If your code supports PyTorch Optimizer step closures, you can use the closure forms of the optimizers, which do not require the `.train()` and `.eval()` calls.
+
+## Paper
+If you use Schedule-Free training in your work, please cite our (preprint)[https://arxiv.org/abs/2405.15682] as:
+```
+@misc{defazio2024road,
+      title={The Road Less Scheduled}, 
+      author={Aaron Defazio and Xingyu Yang and Harsh Mehta and Konstantin Mishchenko and Ahmed Khaled and Ashok Cutkosky},
+      year={2024},
+      eprint={2405.15682},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+```
 
 ### Examples
 Examples of using the `schedulefree` package can be found in the `examples` folder. These include:
