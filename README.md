@@ -1,7 +1,7 @@
 # Schedule-Free Learning
 Schedule-Free Optimizers in PyTorch.
 
-[Preprint: The Road Less Scheduled](https://arxiv.org/abs/2405.15682)
+Preprint: [The Road Less Scheduled](https://arxiv.org/abs/2405.15682)
 
 Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko, Ahmed Khaled, Ashok Cutkosky
 
