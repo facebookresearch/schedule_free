@@ -9,7 +9,7 @@ Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko,
 
 ``` pip install schedulefree ```
 
-Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`.
+Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`. We also have a `AdamWScheduleFreeReference` version which has a simplified implementation, but which uses more memory.
 
 ## Approach
 Schedule-Free learning replaces the momentum of an underlying optimizer with a combination of interpolation and averaging. In the case of gradient descent, the Schedule-Free update is:
