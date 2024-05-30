@@ -34,7 +34,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             (default 2.0).
         foreach (bool): Use a foreach-backed implementation of the optimizer.
             Should be significantly faster, but will have higher peak memory
-            usage (default True).
+            usage (default True if supported in your PyTorch version).
     """
     def __init__(self,
                  params,
@@ -44,7 +44,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                  warmup_steps=0,
                  r=0.0,
                  weight_lr_power=2.0,
-                 foreach=True
+                 foreach=hasattr(torch, "_foreach_mul_")
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
