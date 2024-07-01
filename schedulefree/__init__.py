@@ -8,3 +8,5 @@ from .adamw_schedulefree import AdamWScheduleFree
 from .adamw_schedulefree_reference import AdamWScheduleFreeReference
 from .sgd_schedulefree_closure import SGDScheduleFreeClosure
 from .sgd_schedulefree import SGDScheduleFree
+from .wrap_schedulefree import ScheduleFreeWrapper
+from .wrap_schedulefree_reference import ScheduleFreeWrapperReference
