@@ -46,7 +46,7 @@ def test_schedulefree_wrapper_reference():
 def compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2):
     assert torch.allclose(weight1, weight2)
 
-    for step_idx in range(10):
+    for step_idx in range(100):
         print(step_idx)
         optimizer1.train()
         optimizer2.train()
@@ -250,11 +250,13 @@ def test_equiv():
 
 if __name__ == "__main__":
     torch.manual_seed(1)
-    test_equiv()
+    #test_equiv()
+
     test_schedulefree_wrapper()
-    test_schedulefree_wrapper_reference()
 
-    test_foreach()
+    # test_schedulefree_wrapper_reference()
 
-    test_schedulefree_adam()
-    test_schedulefree_sgd()
+    # test_foreach()
+
+    # test_schedulefree_adam()
+    # test_schedulefree_sgd()

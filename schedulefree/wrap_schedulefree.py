@@ -68,7 +68,14 @@ class ScheduleFreeWrapper:
         return self.base.state_dict()
         
     def zero_grad(self, set_to_none=True):
-        return self.base.zero_grad(set_to_none)
+        for group in self.param_groups:
+            for z in group['params']:
+                model = self.state[z]['model']
+                if set_to_none:
+                    model.grad = None
+                else:
+                    if model.grad is not None:
+                        model.grad.zero_()
 
     @property
     def param_groups(self):

@@ -122,6 +122,7 @@ class ScheduleFreeWrapperReference:
             ckp1 = weight/weight_sum
 
             for p in group['params']:
+                state = self.state[p]
                 
                 y = state['y']
                 z = state['z']
