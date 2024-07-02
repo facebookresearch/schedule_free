@@ -4,7 +4,10 @@ import torch.utils
 
 class ScheduleFreeWrapperSwap:
     r"""
-        Wrap any optimizer to make it Schedule-Free.
+        Wrap any optimizer to make it Schedule-Free. 
+        
+        This version uses a memory-efficient swap operation but may be slightly
+        slower than other versions.
 
         When using this version, you can disable the base optimizer's 
         momentum, as it's no longer necessary when using our wrapper's 
