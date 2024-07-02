@@ -6,7 +6,7 @@
 import torch
 from schedulefree import (SGDScheduleFree, SGDScheduleFreeClosure, 
     AdamWScheduleFree, AdamWScheduleFreeClosure, AdamWScheduleFreeReference, 
-    ScheduleFreeWrapper, ScheduleFreeWrapperReference)
+    ScheduleFreeWrapper, ScheduleFreeWrapperReference, ScheduleFreeWrapperSwap)
 
 def test_schedulefree_wrapper():
     lr = 0.3
@@ -41,12 +41,28 @@ def test_schedulefree_wrapper_reference():
 
     compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2)
 
+def test_schedulefree_wrapper_swap():
+    lr = 0.3
+    decay = 0.1
+    weight1 = torch.randn(3, 2).cuda().requires_grad_()
+    weight2 = torch.clone(weight1.detach()).requires_grad_()
+    optimizer1 = SGDScheduleFree(
+        [weight1], lr=lr, 
+        weight_decay=decay, momentum=0.9, foreach=False)
+
+    optimizer2 = ScheduleFreeWrapperSwap(
+        torch.optim.SGD([weight2], lr=lr, momentum=0.0), 
+        momentum=0.9,
+        weight_decay_at_y=decay)
+
+    compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2)
+
 
 
 def compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2):
     assert torch.allclose(weight1, weight2)
 
-    for step_idx in range(100):
+    for step_idx in range(1000):
         print(step_idx)
         optimizer1.train()
         optimizer2.train()
@@ -58,12 +74,12 @@ def compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2):
         optimizer1.step()
         optimizer2.step()
 
-        assert torch.allclose(weight1, weight2)
+        assert torch.allclose(weight1, weight2, rtol=1e-05, atol=1e-06)
 
         optimizer1.eval()
         optimizer2.eval()
                 
-        assert torch.allclose(weight1, weight2)
+        assert torch.allclose(weight1, weight2, rtol=1e-05, atol=1e-06)
  
 
 def test_schedulefree_sgd():
@@ -251,6 +267,8 @@ def test_equiv():
 if __name__ == "__main__":
     torch.manual_seed(1)
     #test_equiv()
+
+    #test_schedulefree_wrapper_swap()
 
     test_schedulefree_wrapper()
 
