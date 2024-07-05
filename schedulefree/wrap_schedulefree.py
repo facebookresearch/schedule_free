@@ -1,15 +1,21 @@
 import math
 import torch.optim
-from collections import defaultdict
-#defaultdict(dict)
+import torch.utils
 
 class ScheduleFreeWrapper:
     r"""
-        Wrap any optimizer to make it Schedule-Free.
+        Wrap any optimizer to make it Schedule-Free. 
+        
+        This version uses a memory-efficient swap operation but may be slightly
+        slower than other versions, and less numerically stable. In most cases
+        the performance difference is negligible.
+        For the best possible performance and memory-usage, Schedule-Free needs 
+        to be directly integrated with the base optimizer.
 
         When using this version, you can disable the base optimizer's 
         momentum, as it's no longer necessary when using our wrapper's 
         momentum (although you can use both types of momentum if you want).
+
 
         Example usage:
         ```
@@ -18,8 +24,11 @@ class ScheduleFreeWrapper:
             base_optimizer, momentum=0.9, weight_decay_at_y=0.1)
         ```
 
-        If you set weight decay on the base optimizer, it computes weight decay at $z$. We offer the option to compute weight decay at $y$, via the `weight_decay_at_y`
-        parameter, which seems to give better results in our experiments.
+        If you set weight decay on the base optimizer, it computes weight decay
+        at $z$. We offer the option to compute weight decay at $y$, via the 
+        `weight_decay_at_y` parameter, which seems to give better results in 
+        our experiments. This approach to decay only works correctly if the base
+        optimizer uses group["lr"] as the current learning rate. 
 
         base (torch.optim.Optimizer): 
             PyTorch optimizer object
@@ -34,29 +43,18 @@ class ScheduleFreeWrapper:
             (default 2.0).
     """
     def __init__(self, base, 
-                 momentum=0.9,
                  weight_decay_at_y=0.0,
-                 r=0,
-                 weight_lr_power=2):
+                 momentum=0.9,
+                 weight_lr_power=2,
+                 r=0):
 
         self.base = base
-
-        self.momentum = momentum
+        self.weight_decay_at_y = weight_decay_at_y
         self.weight_lr_power = weight_lr_power
         self.r = r
+        self.momentum = momentum
         self.train_mode = False
 
-        # Reallocate param group
-        for group in self.param_groups:
-            group['weight_decay_at_y'] = weight_decay_at_y
-            zs = []
-            for p in group['params']:
-                z = p.detach().clone()
-                zs.append(z)
-
-                self.state[z]['model'] = p
-
-            group['params'] = zs
 
     def add_param_group(self, param_group):
         return self.base.add_param_group(param_group)
@@ -68,14 +66,7 @@ class ScheduleFreeWrapper:
         return self.base.state_dict()
         
     def zero_grad(self, set_to_none=True):
-        for group in self.param_groups:
-            for z in group['params']:
-                model = self.state[z]['model']
-                if set_to_none:
-                    model.grad = None
-                else:
-                    if model.grad is not None:
-                        model.grad.zero_()
+        return self.base.zero_grad(set_to_none)
 
     @property
     def param_groups(self):
@@ -89,31 +80,37 @@ class ScheduleFreeWrapper:
     def eval(self):
         if self.train_mode:
             for group in self.param_groups:
-                for z in group['params']:
-                    state = self.state[z]
-                    # Set model params y -> x
-                    state['model'].lerp_(end=z, weight=1-1/self.momentum)
+                for p in group['params']:
+                    state = self.state[p]
+                    if 'z' in state:
+                        # Set p to x
+                        p.lerp_(end=state['z'], weight=1-1/self.momentum)
         self.train_mode = False
 
     @torch.no_grad()
     def train(self):
         if not self.train_mode:
             for group in self.param_groups:
-                for z in group['params']:
-                    state = self.state[z]
-                    # Set model params x -> y
-                    state['model'].lerp_(end=z, weight=1-self.momentum)
-
+                for p in group['params']:
+                    state = self.state[p]
+                    if 'z' in state:
+                        # Set p to y
+                        p.lerp_(end=state['z'], weight=1-self.momentum)
         self.train_mode = True
+
+    @staticmethod
+    def swap(x, y):
+        x_storage = x.untyped_storage()
+        y_storage = y.untyped_storage()
+        x.set_(y_storage, x.storage_offset(), x.size(), x.stride())
+        y.set_(x_storage, y.storage_offset(), y.size(), y.stride())
+        # Memory efficient but potentially unstable
+        # x.add_(y)
+        # torch.sub(x, y, out=y)
+        # x.sub_(y)
 
     @torch.no_grad()
     def step(self, closure=None):
-        """Performs a single optimization step.
-
-        Arguments:
-            closure (callable, optional): A closure that reevaluates the model
-                and returns the loss.
-        """
         if not self.train_mode:
             raise Exception("Please insert .train() and .eval() calls for the "
                             "optimizer. See documentation for details")
@@ -125,21 +122,31 @@ class ScheduleFreeWrapper:
 
         for group in self.param_groups:
             lr = group['lr']
-            weight_decay_at_y = group['weight_decay_at_y']
-            for z in group['params']:
-                model = self.state[z]['model']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                state = self.state[p]
 
-                # Give the inner optimizer access to the grads calculated at y
-                z.grad = model.grad
+                if 'z' not in state:
+                    state['z'] = torch.clone(p)
 
-                if weight_decay_at_y != 0.0:
-                    z.sub_(model, alpha=lr*weight_decay_at_y)
-                    model.sub_(model, alpha=lr*weight_decay_at_y*(1-self.momentum))
-                    
-                # Convert model y -> x
-                model.lerp_(end=z, weight=1-1/self.momentum)
+                z = state['z']
+
+                # Apply weight_decay_at_y
+                if self.weight_decay_at_y != 0.0:
+                    z.sub_(p, alpha=lr*self.weight_decay_at_y)    
+                    p.sub_(p, alpha=lr*self.weight_decay_at_y*(1-self.momentum))
+
+                # Unextrapolate p converting from y -> x
+                p.lerp_(end=z, weight=1-1/self.momentum)
+
+                # Swap x into z buffer temporarily
+                self.swap(z, p)
+
+                # Now state['z'] is x and p is z.
 
         #######
+        # Apply step to z
         self.base.step()
 
         ######
@@ -147,7 +154,8 @@ class ScheduleFreeWrapper:
             weight_lr_power = self.weight_lr_power
             r = self.r
             k = group.get('k', 0)
-            lr = group['lr']
+            d = group.get('d', 1.0)
+            lr = group['lr']*d
             lr_max = group['lr_max'] = max(lr, group.get('lr_max', 0))
             
             weight = ((k+1)**r) * (lr_max**weight_lr_power)
@@ -155,13 +163,21 @@ class ScheduleFreeWrapper:
 
             ckp1 = weight/weight_sum
 
-            for z in group['params']:
-                model = self.state[z]['model']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                
+                state = self.state[p]
+                z = state['z']
 
-                z.grad = None
+                # Swap x back out of z buffer, leaving p as x
+                self.swap(z, p)
 
-                # Update x then convert x -> y using a fused operation
-                model.lerp_(end=z, weight=1-self.momentum*(1-ckp1))
+                # Update x
+                p.lerp_(end=z, weight=ckp1)
+
+                # Now set p to y
+                p.lerp_(end=state['z'], weight=1-self.momentum)
 
             group['k'] = k+1
 

@@ -113,7 +113,8 @@ class ScheduleFreeWrapperReference:
             weight_lr_power = self.weight_lr_power
             r = self.r
             k = group.get('k', 0)
-            lr = group['lr']
+            d = group.get('d', 1.0)
+            lr = group['lr']*d
             lr_max = group['lr_max'] = max(lr, group.get('lr_max', 0))
             
             weight = ((k+1)**r) * (lr_max**weight_lr_power)
