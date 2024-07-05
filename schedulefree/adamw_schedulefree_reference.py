@@ -3,10 +3,13 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, Any
 import torch
 import torch.optim
-from torch.optim.optimizer import ParamsT
+try:
+    from torch.optim.optimizer import ParamsT
+except ImportError:
+    ParamsT = Any
 import math
 
 class AdamWScheduleFreeReference(torch.optim.Optimizer):
