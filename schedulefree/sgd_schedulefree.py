@@ -3,8 +3,10 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
+from typing import Union, Optional
 import torch
 import torch.optim
+from torch.optim.optimizer import ParamsT
 
 class SGDScheduleFree(torch.optim.Optimizer):
     r"""
@@ -38,14 +40,14 @@ class SGDScheduleFree(torch.optim.Optimizer):
             usage (default True if supported in your PyTorch version).
     """
     def __init__(self,
-                 params, 
-                 lr=1.0, 
-                 momentum=0.9, 
-                 weight_decay=0,
-                 warmup_steps=0,
-                 r=0.0,
-                 weight_lr_power=2,
-                 foreach=hasattr(torch, "_foreach_mul_"),
+                 params: ParamsT,
+                 lr: Union[float, torch.Tensor] = 1.0,
+                 momentum: float = 0.9,
+                 weight_decay: float = 0,
+                 warmup_steps: int = 0,
+                 r: float = 0.0,
+                 weight_lr_power: float = 2,
+                 foreach: Optional[bool] = hasattr(torch, "_foreach_mul_"),
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))

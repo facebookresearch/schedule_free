@@ -3,31 +3,33 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
+from typing import Union, Optional
 import torch
 import torch.optim
+from torch.optim.optimizer import ParamsT
 
 class SGDScheduleFreeClosure(torch.optim.Optimizer):
     r"""
     Schedule-Free SGD
-    As the name suggests, no scheduler is needed with this optimizer. 
+    As the name suggests, no scheduler is needed with this optimizer.
     To add warmup, rather than using a learning rate schedule you can just
     set the warmup_steps parameter.
 
-    This "closure" version requires that step be called with a closure, see 
-    https://pytorch.org/docs/stable/optim.html#optimizer-step-closure. 
-    
+    This "closure" version requires that step be called with a closure, see
+    https://pytorch.org/docs/stable/optim.html#optimizer-step-closure.
+
     Arguments:
-        params (iterable): 
-            Iterable of parameters to optimize or dicts defining 
+        params (iterable):
+            Iterable of parameters to optimize or dicts defining
             parameter groups.
-        lr (float): 
+        lr (float):
             Learning rate parameter (default 1.0)
         momentum (float): momentum factor, must be between 0 and 1 exclusive
             (default: 0.9)
-        weight_decay (float): 
+        weight_decay (float):
             Weight decay, i.e. a L2 penalty (default: 0).
         warmup_steps (int): Enables a linear learning rate warmup (default 0).
-        r (float): Use polynomial weighting in the average 
+        r (float): Use polynomial weighting in the average
             with power r (default 0).
         weight_lr_power (float): During warmup, the weights in the average will
             be equal to lr raised to this power. Set to 0 for no weighting
@@ -37,14 +39,14 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             usage (default True if supported in your PyTorch version).
     """
     def __init__(self,
-                 params,
-                 lr=1.0,
-                 weight_decay=0,
-                 momentum=0.9,
-                 warmup_steps=0,
-                 r=0.0,
-                 weight_lr_power=2.0,
-                 foreach=hasattr(torch, "_foreach_mul_")
+                 params: ParamsT,
+                 lr: Union[float, torch.Tensor] = 1.0,
+                 weight_decay: float = 0,
+                 momentum: float = 0.9,
+                 warmup_steps: int = 0,
+                 r: float = 0.0,
+                 weight_lr_power: float = 2.0,
+                 foreach: Optional[bool] = hasattr(torch, "_foreach_mul_"),
                  ):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
