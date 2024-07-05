@@ -3,10 +3,11 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
+from typing import Union, Tuple, Optional
 import torch
 import torch.optim
+from torch.optim.optimizer import ParamsT
 import math
-import torch.distributed as dist
 
 class AdamWScheduleFreeReference(torch.optim.Optimizer):
     r"""
@@ -42,16 +43,17 @@ class AdamWScheduleFreeReference(torch.optim.Optimizer):
         decay_at_z (bool): Apply weight decay calculated at the z sequence
             instead of the y sequence (default False).
     """
-    def __init__(self, params, 
-                 lr=0.0025, 
-                 betas=(0.9, 0.999), 
-                 eps=1e-8,
-                 weight_decay=0,
-                 warmup_steps=0,
-                 r=0,
-                 weight_lr_power=2,
-                 decay_at_z=False,
-                 foreach=False, # Ignored
+    def __init__(self,
+                 params: ParamsT,
+                 lr: Union[float, torch.Tensor] = 0.0025,
+                 betas: Tuple[float, float] = (0.9, 0.999),
+                 eps: float = 1e-8,
+                 weight_decay: float = 0,
+                 warmup_steps: int = 0,
+                 r: float = 0,
+                 weight_lr_power: float = 2,
+                 decay_at_z: bool = False,
+                 foreach: Optional[bool] = False, # Ignored
                  ):
 
         defaults = dict(lr=lr, 
