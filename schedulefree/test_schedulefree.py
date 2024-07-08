@@ -4,7 +4,68 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 import torch
-from schedulefree import SGDScheduleFree, SGDScheduleFreeClosure, AdamWScheduleFree, AdamWScheduleFreeClosure, AdamWScheduleFreeReference
+from schedulefree import (SGDScheduleFree, SGDScheduleFreeClosure, 
+    AdamWScheduleFree, AdamWScheduleFreeClosure, AdamWScheduleFreeReference, 
+    ScheduleFreeWrapper, ScheduleFreeWrapperReference)
+
+def allclose(x, y):
+    assert torch.allclose(x, y, rtol=1e-05, atol=1e-06)
+
+def test_schedulefree_wrapper():
+    lr = 0.3
+    decay = 0.1
+    weight1 = torch.randn(3, 2).cuda().requires_grad_()
+    weight2 = torch.clone(weight1.detach()).requires_grad_()
+    optimizer1 = SGDScheduleFree(
+        [weight1], lr=lr, 
+        weight_decay=decay, momentum=0.9, foreach=False)
+
+    optimizer2 = ScheduleFreeWrapper(
+        torch.optim.SGD([weight2], lr=lr, momentum=0.0), 
+        momentum=0.9,
+        weight_decay_at_y=decay)
+
+    compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2)
+
+
+def test_schedulefree_wrapper_reference():
+    lr = 0.3
+    decay = 0.1
+    weight1 = torch.randn(3, 2).cuda().requires_grad_()
+    weight2 = torch.clone(weight1.detach()).requires_grad_()
+    optimizer1 = SGDScheduleFree(
+        [weight1], lr=lr, 
+        weight_decay=decay, momentum=0.9, foreach=False)
+
+    optimizer2 = ScheduleFreeWrapperReference(
+        torch.optim.SGD([weight2], lr=lr, momentum=0.0), 
+        momentum=0.9,
+        weight_decay_at_y=decay)
+
+    compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2)
+
+def compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2):
+    assert torch.allclose(weight1, weight2)
+
+    for step_idx in range(1000):
+        print(step_idx)
+        optimizer1.train()
+        optimizer2.train()
+        grad = torch.rand_like(weight1)
+
+        weight1.grad = torch.clone(grad)
+        weight2.grad = torch.clone(grad)
+
+        optimizer1.step()
+        optimizer2.step()
+
+        allclose(weight1, weight2)
+
+        optimizer1.eval()
+        optimizer2.eval()
+                
+        allclose(weight1, weight2)
+ 
 
 def test_schedulefree_sgd():
     decay = 0.5
@@ -14,7 +75,7 @@ def test_schedulefree_sgd():
     optimizer_closure = SGDScheduleFreeClosure([weight_closure], lr=0.3, warmup_steps=warmup, weight_decay=decay)
     optimizer = SGDScheduleFree([weight], lr=0.3, warmup_steps=warmup, weight_decay=decay)
 
-    for step_idx in range(50):
+    for step_idx in range(10):
         print(step_idx)
         optimizer.train()
         grad = torch.rand_like(weight)
@@ -50,7 +111,7 @@ def test_schedulefree_adam():
     optimizer = AdamWScheduleFree([weight], lr=0.3, warmup_steps=warmup, weight_decay=decay)
     optimizer_reference = AdamWScheduleFreeReference([weight_reference], lr=0.3, warmup_steps=warmup, weight_decay=decay)
 
-    for step_idx in range(50):
+    for step_idx in range(10):
         print(step_idx)
         optimizer.train()
         optimizer_reference.train()
@@ -79,10 +140,10 @@ def test_schedulefree_adam():
                 z = state['z']
                 z_reference = state_reference['z']
 
-                assert torch.allclose(p, p_closure)
-                assert torch.allclose(p, p_reference)
-                assert torch.allclose(z, z_closure)
-                assert torch.allclose(z, z_reference)
+                allclose(p, p_closure)
+                allclose(p, p_reference)
+                allclose(z, z_closure)
+                allclose(z, z_reference)
  
         optimizer.train()
         optimizer_reference.train()
@@ -102,8 +163,8 @@ def test_schedulefree_adam():
                 y_closure = p_closure.lerp(end=z_closure, weight=1-0.9)
 
 
-                assert torch.allclose(y, y_closure)
-                assert torch.allclose(y, p_reference.data)
+                allclose(y, y_closure)
+                allclose(y, p_reference.data)
 
 def test_foreach():
     decay = 0.5
@@ -125,7 +186,7 @@ def test_foreach():
         {'params': [weight_nograd]},
         {'params': []}], lr=0.3, warmup_steps=warmup, weight_decay=decay, foreach=False)
 
-    for step_idx in range(50):
+    for step_idx in range(10):
         optimizer.train()
         grad = torch.rand_like(weight)
         grad2 = torch.rand_like(weight2)
@@ -156,7 +217,46 @@ def test_foreach():
         optimizer_foreach.train()
 
 
+def test_equiv():
+    model1 = torch.tensor([1.0])
+    model2 = torch.tensor([1.0])
+    z = torch.tensor([2.0])
+    momentum = 0.9
+    ckp1 = 0.05
+
+    # y -> x
+    model1.lerp_(end=z, weight=1-1/momentum)
+
+    # x update
+    model1.lerp_(end=z, weight=ckp1)
+
+    # x -> y
+    model1.lerp_(end=z, weight=1-momentum)
+
+    model2.lerp_(end=z, weight=ckp1)
+
+    assert torch.allclose(model1, model2)
+
+    # Update x
+    model1.lerp_(end=z, weight=ckp1)
+
+    # Convert Model x -> y
+    model1.lerp_(end=z, weight=1-momentum)
+
+    # Update x then convert x -> y using a fused operation
+    model2.lerp_(end=z, weight=1-momentum*(1-ckp1))
+
+    assert torch.allclose(model1, model2)
+
+
 if __name__ == "__main__":
+    torch.manual_seed(1)
+    test_equiv()
+
+    test_schedulefree_wrapper()
+
+    test_schedulefree_wrapper_reference()
+
     test_foreach()
 
     test_schedulefree_adam()

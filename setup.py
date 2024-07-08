@@ -11,7 +11,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="schedulefree",
-    version="1.2.6",
+    version="1.2.7",
     author="Aaron Defazio",
     author_email="adefazio@meta.com",
     description="Schedule Free Learning in PyTorch",
@@ -24,5 +24,5 @@ setuptools.setup(
         'License :: OSI Approved :: Apache Software License',
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.4',
 )

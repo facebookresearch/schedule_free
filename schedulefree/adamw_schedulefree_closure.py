@@ -3,12 +3,13 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Union, Tuple, Optional, Any
+from typing import Tuple, Union, Optional, Iterable, Dict, Any
+from typing_extensions import TypeAlias
 import torch.optim
 try:
     from torch.optim.optimizer import ParamsT
 except ImportError:
-    ParamsT = Any
+    ParamsT : TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 import math
 
 class AdamWScheduleFreeClosure(torch.optim.Optimizer):

@@ -9,10 +9,12 @@ Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko,
 
 ``` pip install schedulefree ```
 
-Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`. We also have a `AdamWScheduleFreeReference` version which has a simplified implementation, but which uses more memory.
+Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`. We also have a `AdamWScheduleFreeReference` version which has a simplified implementation, but which uses more memory. To combine with other optimizers, use the ScheduleFreeWrapper version.
+
+A [Jax implementation](https://optax.readthedocs.io/en/latest/api/contrib.html#schedule-free) is availiable as part of Optax.
 
 ## Approach
-Schedule-Free learning replaces the momentum of an underlying optimizer with a combination of interpolation and averaging. In the case of gradient descent, the Schedule-Free update is:
+Schedule-Free learning replaces the momentum of an underlying optimizer with a combination of interpolation and averaging. In the case of gradient descent, the basic Schedule-Free update is:
 
 $$
 \begin{align*}
@@ -26,7 +28,8 @@ Here $x$ is the sequence that evaluations of test/val loss should occur at, whic
 
 As the name suggests, Schedule-Free learning does not require a decreasing learning rate schedule, yet typically out-performs, or at worst matches, SOTA schedules such as cosine-decay and linear decay. Only two sequences need to be stored at a time (the third can be computed from the other two on the fly) so this method has the same memory requirements as the base optimizer (parameter buffer + momentum).
 
-We provide both AdamW and SGD versions in this repo.
+We provide both AdamW and SGD versions in this repo, as we as an experimental
+wrapper version that can be used with any base optimizer.
 
 ## How to Use
 Since our optimizer uses two different points for gradient calls and test/val loss calculations, it's necessary to switch the param buffer between the two during training. This is done by calling `optimizer.train()` at the same place you call `model.train()` and `optimizer.eval()` at the same place you call `model.eval()`. The optimizer should also be placed in eval mode when storing checkpoints.
@@ -75,7 +78,23 @@ This will replace the `training_mean`/`training_var` cache (which is updated in 
  - This method does require tuning - it won't necessarily out-perform a schedule approach without also tuning regularization and learning rate parameters.
  - For SGD, a learning rate 10x-50x larger than classical rates seems to be a good starting point.
  - For AdamW, learning rates in the range 1x-10x larger than with schedule-based approaches seem to work.
- - Our method can also be implemented as a wrapper around a base optimizer, where the momentum of the base optimizer is disabled. We didn't do that as PyTorch's Adam implementation would still allocate memory for its momentum buffer `exp_avg` even if we don't use it.
+
+ # Wrapper Version
+
+We offer an experimental wrapper version `ScheduleFreeWrapper` which can wrap any base optimizer. When using this version, you can disable the base optimizer's 
+ momentum, as it's no longer necessary when using our wrapper's momentum (although you can use both types of momentum if you want).
+
+ Example usage:
+ ```
+  base_optimizer = torch.optim.RMSprop(model.parameters(), lr=0.0025)
+  optimizer = ScheduleFreeWrapper(
+    base_optimizer, momentum=0.9, weight_decay_at_y=0.1)
+ ```
+ If you set weight decay on the base optimizer, it computes weight decay at $z$. We offer the option to compute weight decay at $y$, via the `weight_decay_at_y`
+ parameter, which seems to give better results in our experiments.
+
+We also incldue a ScheduleFreeWrapperReference version which uses more memory but is more numerically stable, we recommended this version for early experimentation or 
+research work.
 
 # License
 See the [License file](/LICENSE).
