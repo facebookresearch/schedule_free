@@ -1,6 +1,10 @@
-import math
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+# 
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+import torch
 import torch.optim
-import torch.utils
 
 class ScheduleFreeWrapper:
     r"""
@@ -42,11 +46,12 @@ class ScheduleFreeWrapper:
             be equal to lr raised to this power. Set to 0 for no weighting
             (default 2.0).
     """
-    def __init__(self, base, 
-                 weight_decay_at_y=0.0,
-                 momentum=0.9,
-                 weight_lr_power=2,
-                 r=0):
+    def __init__(self, 
+                 base : torch.optim.Optimizer, 
+                 weight_decay_at_y : float = 0.0,
+                 momentum : float = 0.9,
+                 weight_lr_power : float = 2,
+                 r : float = 0):
 
         self.base = base
         self.weight_decay_at_y = weight_decay_at_y

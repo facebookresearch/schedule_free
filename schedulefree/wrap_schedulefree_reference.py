@@ -1,7 +1,10 @@
-import math
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+# 
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+import torch
 import torch.optim
-from collections import defaultdict
-#defaultdict(dict)
 
 class ScheduleFreeWrapperReference:
     r""" 
@@ -9,7 +12,7 @@ class ScheduleFreeWrapperReference:
         This version is easy to modify and numerically stable, it's a good
         place to start when doing more Research-orientated experimentation
         combining Schedule-Free with other optimizers.
-        
+
         base (torch.optim.Optimizer): 
             PyTorch optimizer object
         momentum (float): Apply momentum on the outer optimizer (default 0.9)
@@ -22,11 +25,12 @@ class ScheduleFreeWrapperReference:
             be equal to lr raised to this power. Set to 0 for no weighting
             (default 2.0).
     """
-    def __init__(self, base, 
-                 momentum=0.9,
-                 weight_decay_at_y=0.0,
-                 r=0,
-                 weight_lr_power=2):
+    def __init__(self, 
+                 base : torch.optim.Optimizer, 
+                 momentum : float = 0.9,
+                 weight_decay_at_y : float = 0.0,
+                 r : float = 0,
+                 weight_lr_power : float = 2):
 
         self.base = base
 
