@@ -100,14 +100,10 @@ class ScheduleFreeWrapper:
 
     @staticmethod
     def swap(x, y):
-        x_storage = x.untyped_storage()
-        y_storage = y.untyped_storage()
-        x.set_(y_storage, x.storage_offset(), x.size(), x.stride())
-        y.set_(x_storage, y.storage_offset(), y.size(), y.stride())
         # Memory efficient but potentially unstable
-        # x.add_(y)
-        # torch.sub(x, y, out=y)
-        # x.sub_(y)
+        x.add_(y)
+        torch.sub(x, y, out=y)
+        x.sub_(y)
 
     @torch.no_grad()
     def step(self, closure=None):

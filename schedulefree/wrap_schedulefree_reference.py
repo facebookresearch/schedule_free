@@ -5,7 +5,22 @@ from collections import defaultdict
 
 class ScheduleFreeWrapperReference:
     r""" 
-        Simplified reference implementation of ScheduleFreeWrapper
+        Simplified reference implementation of ScheduleFreeWrapper.
+        This version is easy to modify and numerically stable, it's a good
+        place to start when doing more Research-orientated experimentation
+        combining Schedule-Free with other optimizers.
+        
+        base (torch.optim.Optimizer): 
+            PyTorch optimizer object
+        momentum (float): Apply momentum on the outer optimizer (default 0.9)
+        weight_decay_at_y (float): 
+            Weight decay calculated at the y point. Set weight decay on the 
+            inner optimizer to instead calculate at z (default: 0).
+        r (float): Use polynomial weighting in the average 
+            with power r (default 0).
+        weight_lr_power (float): During warmup, the weights in the average will
+            be equal to lr raised to this power. Set to 0 for no weighting
+            (default 2.0).
     """
     def __init__(self, base, 
                  momentum=0.9,
