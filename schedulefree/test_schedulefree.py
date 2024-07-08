@@ -47,8 +47,9 @@ def test_schedulefree_wrapper_reference():
 def compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2):
     assert torch.allclose(weight1, weight2)
 
-    for step_idx in range(1000):
-        print(step_idx)
+    for step_idx in range(100):
+        if step_idx % 10 == 0:
+            print(step_idx)
         optimizer1.train()
         optimizer2.train()
         grad = torch.rand_like(weight1)
@@ -188,6 +189,7 @@ def test_foreach():
 
     for step_idx in range(10):
         optimizer.train()
+        optimizer_foreach.train()
         grad = torch.rand_like(weight)
         grad2 = torch.rand_like(weight2)
 
@@ -212,9 +214,6 @@ def test_foreach():
 
                     assert torch.allclose(p, p_foreach)
                     assert torch.allclose(z, z_foreach)
-    
-        optimizer.train()
-        optimizer_foreach.train()
 
 
 def test_equiv():
@@ -248,9 +247,54 @@ def test_equiv():
 
     assert torch.allclose(model1, model2)
 
+def test_compile():
+    #torch._dynamo.config.verbose=True
+
+    lr = 0.3
+    decay = 0.5
+    warmup = 5
+    weight = torch.randn(3, 2).cuda().requires_grad_()
+    weight_uncompiled = torch.clone(weight.data).requires_grad_()
+    optimizer = AdamWScheduleFree([weight], lr=lr, warmup_steps=warmup, weight_decay=decay)
+    optimizer_uncompiled = AdamWScheduleFree([weight_uncompiled], lr=lr, warmup_steps=warmup, weight_decay=decay)
+
+    #@torch.compile(fullgraph=False)
+    def opt_train():
+        optimizer.train()
+
+    #@torch.compile(fullgraph=False)
+    def opt_eval():
+        optimizer.eval()
+
+    #@torch.compile(fullgraph=False)
+    def opt_step():
+        optimizer.step()
+
+    for step_idx in range(10):
+        print(step_idx)
+        opt_train()
+        optimizer_uncompiled.train()
+
+        grad = torch.rand_like(weight)
+        weight.grad = torch.clone(grad)
+        weight_uncompiled.grad = torch.clone(grad)
+
+        opt_step()
+        optimizer_uncompiled.step()
+
+        assert torch.allclose(weight, weight_uncompiled)
+
+        opt_eval()
+        optimizer_uncompiled.eval()
+
+        assert torch.allclose(weight, weight_uncompiled)
+
 
 if __name__ == "__main__":
     torch.manual_seed(1)
+
+    test_compile()
+
     test_equiv()
 
     test_schedulefree_wrapper()

@@ -69,8 +69,8 @@ class ScheduleFreeWrapperReference:
                 for p in group['params']:
                     state = self.state[p]
                     if 'x' in state:
-                        # Switch p.data to x
-                        p.data.copy_(state['x'])
+                        # Switch p to x
+                        p.copy_(state['x'])
         self.train_mode = False
 
     @torch.no_grad()
@@ -80,7 +80,7 @@ class ScheduleFreeWrapperReference:
                 for p in group['params']:
                     state = self.state[p]
                     if 'y' in state:
-                        p.data.copy_(state['y'])
+                        p.copy_(state['y'])
 
         self.train_mode = True
 
@@ -93,8 +93,9 @@ class ScheduleFreeWrapperReference:
                 and returns the loss.
         """
         if not self.train_mode:
-            raise Exception("Please insert .train() and .eval() calls for the "
-                            "optimizer. See documentation for details")
+            raise Exception("Optimizer was not in train mode when step is called. "
+                            "Please insert .train() and .eval() calls on the "
+                            "optimizer. See documentation for details.")
 
         loss = None
         if closure is not None:
@@ -108,9 +109,9 @@ class ScheduleFreeWrapperReference:
                 state = self.state[p]
 
                 if 'z' not in state:
-                    state['z'] = torch.clone(p.data)
-                    state['x'] = torch.clone(p.data)
-                    state['y'] = torch.clone(p.data) 
+                    state['z'] = torch.clone(p, memory_format=torch.preserve_format)
+                    state['x'] = torch.clone(p, memory_format=torch.preserve_format)
+                    state['y'] = torch.clone(p, memory_format=torch.preserve_format) 
 
                 y = state['y']
                 z = state['z']

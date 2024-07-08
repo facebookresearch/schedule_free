@@ -65,7 +65,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                         r=r,
                         k=0,
                         warmup_steps=warmup_steps,
-                        train_mode=True,
+                        train_mode=False,
                         weight_sum=0.0,
                         lr_max=-1.0,
                         weight_lr_power=weight_lr_power,
@@ -73,6 +73,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                         foreach=foreach)
         super().__init__(params, defaults)
     
+    @torch.no_grad()
     def eval(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
@@ -81,10 +82,11 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 for p in group['params']:
                     state = self.state[p]
                     if 'z' in state:
-                        # Set p.data to x
-                        p.data.lerp_(end=state['z'], weight=1-1/beta1)
+                        # Set p to x
+                        p.lerp_(end=state['z'], weight=1-1/beta1)
                 group['train_mode'] = False
 
+    @torch.no_grad()
     def train(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
@@ -93,10 +95,11 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 for p in group['params']:
                     state = self.state[p]
                     if 'z' in state:
-                        # Set p.data to y
-                        p.data.lerp_(end=state['z'], weight=1-beta1)
+                        # Set p to y
+                        p.lerp_(end=state['z'], weight=1-beta1)
                 group['train_mode'] = True
 
+    @torch.no_grad()
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -104,10 +107,15 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
+        if not self.param_groups[0]['train_mode']:
+            raise Exception("Optimizer was not in train mode when step is called. "
+                            "Please insert .train() and .eval() calls on the "
+                            "optimizer. See documentation for details.")
 
         loss = None
         if closure is not None:
-            loss = closure()
+            with torch.enable_grad():
+                loss = closure()
         
         for group in self.param_groups:
             eps = group['eps']
@@ -143,11 +151,11 @@ class AdamWScheduleFree(torch.optim.Optimizer):
             
             for p in active_p:
                 if 'z' not in self.state[p]:
-                    self.state[p]['z'] = torch.clone(p.data)
-                    self.state[p]['exp_avg_sq'] = torch.zeros_like(p.data)
+                    self.state[p]['z'] = torch.clone(p, memory_format=torch.preserve_format)
+                    self.state[p]['exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
             if group['foreach'] and len(active_p) > 0:
-                y, grad, exp_avg_sq, z = zip(*[(p.data, 
+                y, grad, exp_avg_sq, z = zip(*[(p, 
                                                 p.grad, 
                                                 self.state[p]['exp_avg_sq'], 
                                                 self.state[p]['z']) 
@@ -175,8 +183,8 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 torch._foreach_sub_(z, grad, alpha=lr)
             else:
                 for p in active_p:
-                    y = p.data # Notation to match theory
-                    grad = p.grad.data
+                    y = p # Notation to match theory
+                    grad = p.grad
 
                     state = self.state[p]
 
