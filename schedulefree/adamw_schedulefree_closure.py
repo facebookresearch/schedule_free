@@ -3,7 +3,7 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Tuple, Union, Optional, Iterable, Dict, Any
+from typing import Tuple, Union, Optional, Iterable, Dict, Callable, Any
 from typing_extensions import TypeAlias
 import torch.optim
 try:
@@ -71,7 +71,7 @@ class AdamWScheduleFreeClosure(torch.optim.Optimizer):
         super().__init__(params, defaults)
 
     @torch.no_grad()
-    def step(self, closure):
+    def step(self, closure: Callable[[], float]) -> Optional[float]:
         """Performs a single optimization step.
 
         Arguments:

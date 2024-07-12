@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 import torch
 import torch.optim
+from typing import Optional, Callable
 
 class ScheduleFreeWrapperReference:
     r""" 
@@ -85,7 +86,7 @@ class ScheduleFreeWrapperReference:
         self.train_mode = True
 
     @torch.no_grad()
-    def step(self, closure=None):
+    def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         """Performs a single optimization step.
 
         Arguments:

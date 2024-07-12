@@ -3,7 +3,7 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Tuple, Union, Optional, Iterable, Dict, Any
+from typing import Tuple, Union, Optional, Iterable, Dict, Callable, Any
 from typing_extensions import TypeAlias
 import torch
 import torch.optim
@@ -100,7 +100,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 group['train_mode'] = True
 
     @torch.no_grad()
-    def step(self, closure=None):
+    def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         """Performs a single optimization step.
 
         Arguments:
@@ -143,9 +143,6 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 ckp1 = weight/weight_sum
             except ZeroDivisionError:
                 ckp1 = 0
-
-            if not group['train_mode']:
-                raise Exception("Not in train mode!")
 
             active_p = [p for p in group['params'] if p.grad is not None]
             
