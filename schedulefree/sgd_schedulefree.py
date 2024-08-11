@@ -82,7 +82,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
                     state = self.state[p]
                     if 'z' in state:
                         # Set p.data to x
-                        p.data.lerp_(end=state['z'], weight=1-1/momentum)
+                        p.data.lerp_(end=state['z'].to(p.data.device), weight=1-1/momentum)
                 group['train_mode'] = False
 
     def train(self):
@@ -94,7 +94,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
                     state = self.state[p]
                     if 'z' in state:
                         # Set p.data to y
-                        p.data.lerp_(end=state['z'], weight=1-momentum)
+                        p.data.lerp_(end=state['z'].to(p.data.device), weight=1-momentum)
                 group['train_mode'] = True
 
     def step(self, closure=None):

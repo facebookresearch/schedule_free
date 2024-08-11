@@ -94,7 +94,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                     state = self.state[p]
                     if 'z' in state:
                         # Set p.data to y
-                        p.data.lerp_(end=state['z'], weight=1-beta1)
+                        p.data.lerp_(end=state['z'].to(p.data.device), weight=1-beta1)
                 group['train_mode'] = True
 
     def step(self, closure=None):
