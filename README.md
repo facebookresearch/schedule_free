@@ -93,8 +93,7 @@ We offer an experimental wrapper version `ScheduleFreeWrapper` which can wrap an
  If you set weight decay on the base optimizer, it computes weight decay at $z$. We offer the option to compute weight decay at $y$, via the `weight_decay_at_y`
  parameter, which seems to give better results in our experiments.
 
-We also include a ScheduleFreeWrapperReference version which uses more memory but is more numerically stable, we recommended this version for early experimentation or 
-research work.
+We also include a ScheduleFreeWrapperReference version which uses more memory but is more numerically stable, we recommended this version for early experimentation or research work.
 
 # License
 See the [License file](/LICENSE).

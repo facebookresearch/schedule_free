@@ -10,8 +10,7 @@ class ScheduleFreeWrapper:
     r"""
         Wrap any optimizer to make it Schedule-Free. 
         
-        This version uses a memory-efficient swap operation but may be slightly
-        slower than other versions, and less numerically stable. In most cases
+        This version uses a memory-efficient swap operation but may be slower than the reference version. In most cases
         the performance difference is negligible.
         For the best possible performance and memory-usage, Schedule-Free needs 
         to be directly integrated with the base optimizer.
@@ -105,10 +104,10 @@ class ScheduleFreeWrapper:
 
     @staticmethod
     def swap(x, y):
-        # Memory efficient but potentially unstable
-        x.add_(y)
-        torch.sub(x, y, out=y)
-        x.sub_(y)
+        # If this crashes use ScheduleFreeWrapperReference instead
+        x.view(torch.uint8).bitwise_xor_(y.view(torch.uint8))
+        y.view(torch.uint8).bitwise_xor_(x.view(torch.uint8))
+        x.view(torch.uint8).bitwise_xor_(y.view(torch.uint8))
 
     @torch.no_grad()
     def step(self, closure=None):
