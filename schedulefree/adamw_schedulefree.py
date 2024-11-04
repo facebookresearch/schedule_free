@@ -68,6 +68,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                         train_mode=False,
                         weight_sum=0.0,
                         lr_max=-1.0,
+                        scheduled_lr=0.0,
                         weight_lr_power=weight_lr_power,
                         weight_decay=weight_decay,
                         foreach=foreach)
@@ -132,7 +133,8 @@ class AdamWScheduleFree(torch.optim.Optimizer):
               sched = 1.0
             
             bias_correction2 = 1 - beta2 ** (k+1)
-            lr = group['lr']*sched*math.sqrt(bias_correction2)
+            lr = group['lr']*sched
+            group['scheduled_lr'] = lr # For logging purposes
             
             lr_max = group['lr_max'] = max(lr, group['lr_max'])
             
@@ -161,7 +163,8 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                 # Decay the first and second moment running average coefficient
                 torch._foreach_mul_(exp_avg_sq, beta2)
                 torch._foreach_addcmul_(exp_avg_sq, grad, grad, value=1-beta2)
-                denom = torch._foreach_sqrt(exp_avg_sq)
+                denom = torch._foreach_div(exp_avg_sq, bias_correction2)
+                torch._foreach_sqrt_(denom)
                 torch._foreach_add_(denom, eps)
 
                 # Normalize grad in-place for memory efficiency
@@ -189,7 +192,7 @@ class AdamWScheduleFree(torch.optim.Optimizer):
                     exp_avg_sq = state['exp_avg_sq']
 
                     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1-beta2)
-                    denom = exp_avg_sq.sqrt().add_(eps)
+                    denom = exp_avg_sq.div(bias_correction2).sqrt_().add_(eps)
 
                     # Reuse grad buffer for memory efficiency
                     grad_normalized = grad.div_(denom)

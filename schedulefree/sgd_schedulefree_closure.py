@@ -69,6 +69,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             weight_sum=0.0,
             weight_lr_power=weight_lr_power,
             lr_max=0.0,
+            scheduled_lr=0.0,
             foreach=foreach
         )
         super().__init__(params, defaults)
@@ -117,6 +118,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             else:
               sched = 1.0
             lr = group['lr']*sched
+            group['scheduled_lr'] = lr # For logging purposes
 
             weight_lr_power = group['weight_lr_power']
             

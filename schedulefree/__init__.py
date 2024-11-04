@@ -6,6 +6,7 @@
 from .adamw_schedulefree_closure import AdamWScheduleFreeClosure
 from .adamw_schedulefree import AdamWScheduleFree
 from .adamw_schedulefree_reference import AdamWScheduleFreeReference
+from .adamw_schedulefree_paper import AdamWScheduleFreePaper
 from .sgd_schedulefree_closure import SGDScheduleFreeClosure
 from .sgd_schedulefree import SGDScheduleFree
 from .sgd_schedulefree_reference import SGDScheduleFreeReference

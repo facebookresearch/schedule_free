@@ -69,6 +69,7 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
                         train_mode=True,
                         weight_sum=0.0,
                         lr_max=-1.0,
+                        scheduled_lr=0.0,
                         weight_lr_power=weight_lr_power,
                         weight_decay=weight_decay,
                         foreach=foreach)
@@ -128,6 +129,7 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
             else:
               sched = 1.0
             lr = group['lr']*sched
+            group['scheduled_lr'] = lr # For logging purposes
 
             weight_lr_power = group['weight_lr_power']
             
