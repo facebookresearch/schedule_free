@@ -3,7 +3,7 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Union, Optional, Iterable, Dict, Callable, Any
+from typing import Union, Optional, Iterable, Dict, Any
 from typing_extensions import TypeAlias
 import torch
 import torch.optim
@@ -12,7 +12,7 @@ try:
 except ImportError:
     ParamsT : TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
-class SGDScheduleFree(torch.optim.Optimizer):
+class SGDScheduleFreeReference(torch.optim.Optimizer):
     r"""
     Schedule-Free SGD
     As the name suggests, no scheduler is needed with this optimizer. 
@@ -22,6 +22,8 @@ class SGDScheduleFree(torch.optim.Optimizer):
     This optimizer requires that .train() and .eval() be called before the
     beginning of training and evaluation respectively. The optimizer should
     also be placed in eval mode when saving checkpoints.
+
+    This is the reference implementation, which is simpler but uses more memory.
     
     Arguments:
         params (iterable): 
@@ -40,8 +42,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
             be equal to lr raised to this power. Set to 0 for no weighting
             (default 2.0).
         foreach (bool): Use a foreach-backed implementation of the optimizer.
-            Should be significantly faster, but will have higher peak memory
-            usage (default True if supported in your PyTorch version).
+            Ignored for the reference implementation
     """
     def __init__(self,
                  params: ParamsT,
@@ -65,7 +66,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
                         r=r,
                         k=0,
                         warmup_steps=warmup_steps,
-                        train_mode=False,
+                        train_mode=True,
                         weight_sum=0.0,
                         lr_max=-1.0,
                         weight_lr_power=weight_lr_power,
@@ -73,50 +74,39 @@ class SGDScheduleFree(torch.optim.Optimizer):
                         foreach=foreach)
         super().__init__(params, defaults)
     
-    @torch.no_grad()
     def eval(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
-            momentum = group['momentum']
             if train_mode:
                 for p in group['params']:
                     state = self.state[p]
-                    if 'z' in state:
-                        # Set p to x
-                        p.lerp_(end=state['z'].to(p.device), weight=1-1/momentum)
+                    if 'x' in state:
+                        # Set p.data to x
+                        p.data.copy_(state['x'])
                 group['train_mode'] = False
 
-    @torch.no_grad()
     def train(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
-            momentum = group['momentum']
             if not train_mode:
                 for p in group['params']:
                     state = self.state[p]
-                    if 'z' in state:
-                        # Set p to y
-                        p.lerp_(end=state['z'].to(p.device), weight=1-momentum)
+                    if 'y' in state:
+                        # Set p.data to y
+                        p.data.copy_(state['y'])
                 group['train_mode'] = True
 
-    @torch.no_grad()
-    def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
+    def step(self, closure=None):
         """Performs a single optimization step.
 
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
-        if not self.param_groups[0]['train_mode']:
-            raise Exception("Optimizer was not in train mode when step is called. "
-                            "Please insert .train() and .eval() calls on the "
-                            "optimizer. See documentation for details.")
-
 
         loss = None
         if closure is not None:
-            with torch.enable_grad():
-                loss = closure()
+            loss = closure()
         
         for group in self.param_groups:
             momentum = group['momentum']
@@ -144,44 +134,38 @@ class SGDScheduleFree(torch.optim.Optimizer):
             except ZeroDivisionError:
                 ckp1 = 0
 
-            active_p = [p for p in group['params'] if p.grad is not None]
+            if not group['train_mode']:
+                raise Exception("Not in train mode!")
 
-            for p in active_p:
-                if 'z' not in self.state[p]:
-                    self.state[p]['z'] = torch.clone(p, memory_format=torch.preserve_format)
+            for p in group['params']:
+                if p.grad is None:
+                    continue
 
-            if group['foreach'] and len(active_p) > 0:
-                y, grad, z = zip(*[(p, p.grad, self.state[p]['z']) 
-                                for p in active_p])
+                grad = p.grad.data
+                state = self.state[p]
+
+                if 'z' not in state:
+                    state['z'] = torch.clone(p.data)
+                    state['x'] = torch.clone(p.data)
+                    state['y'] = torch.clone(p.data) 
+
+                z = state['z']
+                x = state['x']
+                y = state['y']
 
                 # Apply weight decay
                 if weight_decay != 0:
-                    torch._foreach_add_(grad, y, alpha=weight_decay)
-
-                # These operations update y in-place,
-                # without computing x explicitly.
-                torch._foreach_lerp_(y, z, weight=ckp1)
-                torch._foreach_add_(y, grad, alpha=lr*(momentum*(1-ckp1)-1))
+                    grad.add_(y, alpha=weight_decay)
 
                 # SGD step
-                torch._foreach_sub_(z, grad, alpha=lr)
-            else:
-                for p in active_p:
-                    y = p # Notation to match theory
-                    grad = p.grad
-                    z = self.state[p]['z']
+                z.sub_(grad, alpha=lr)
 
-                    # Apply weight decay
-                    if weight_decay != 0:
-                        grad.add_(y, alpha=weight_decay)
+                ### Take step
+                x.mul_(1-ckp1).add_(z, alpha=ckp1)
 
-                    # These operations update y in-place,
-                    # without computing x explicitly.
-                    y.lerp_(end=z, weight=ckp1)
-                    y.add_(grad, alpha=lr*(momentum*(1-ckp1)-1))
-
-                    # SGD step
-                    z.sub_(grad, alpha=lr)
+                # Compute y
+                y.copy_(x.mul(momentum).add_(z, alpha=1-momentum))
+                p.data.copy_(y)
 
             group['k'] = k+1
         return loss

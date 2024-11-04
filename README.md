@@ -9,7 +9,7 @@ Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko,
 
 ``` pip install schedulefree ```
 
-Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`. We also have a `AdamWScheduleFreeReference` version which has a simplified implementation, but which uses more memory. To combine with other optimizers, use the ScheduleFreeWrapper version.
+Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`. We also have `AdamWScheduleFreeReference` and `SGDScheduleFreeReference` versions which have a simplified implementation, but which use more memory. To combine with other optimizers, use the experimental ScheduleFreeWrapper version.
 
 A [Jax implementation](https://optax.readthedocs.io/en/latest/api/contrib.html#schedule-free) is availiable as part of Optax.
 
@@ -93,8 +93,7 @@ We offer an experimental wrapper version `ScheduleFreeWrapper` which can wrap an
  If you set weight decay on the base optimizer, it computes weight decay at $z$. We offer the option to compute weight decay at $y$, via the `weight_decay_at_y`
  parameter, which seems to give better results in our experiments.
 
-We also incldue a ScheduleFreeWrapperReference version which uses more memory but is more numerically stable, we recommended this version for early experimentation or 
-research work.
+We also include a ScheduleFreeWrapperReference version which uses more memory but is more numerically stable, we recommended this version for early experimentation or research work.
 
 # License
 See the [License file](/LICENSE).

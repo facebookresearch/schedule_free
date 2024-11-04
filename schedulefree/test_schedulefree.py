@@ -6,7 +6,7 @@
 import torch
 from schedulefree import (SGDScheduleFree, SGDScheduleFreeClosure, 
     AdamWScheduleFree, AdamWScheduleFreeClosure, AdamWScheduleFreeReference, 
-    ScheduleFreeWrapper, ScheduleFreeWrapperReference)
+    ScheduleFreeWrapper, ScheduleFreeWrapperReference, SGDScheduleFreeReference)
 
 def allclose(x, y):
     assert torch.allclose(x, y, rtol=1e-05, atol=1e-06)
@@ -73,34 +73,53 @@ def test_schedulefree_sgd():
     warmup = 5
     weight_closure = torch.randn(3, 2).cuda().requires_grad_()
     weight = torch.clone(weight_closure.data).requires_grad_()
+    weight_ref = torch.clone(weight_closure.data).requires_grad_()
     optimizer_closure = SGDScheduleFreeClosure([weight_closure], lr=0.3, warmup_steps=warmup, weight_decay=decay)
     optimizer = SGDScheduleFree([weight], lr=0.3, warmup_steps=warmup, weight_decay=decay)
+    optimizer_ref = SGDScheduleFreeReference([weight_ref], lr=0.3, warmup_steps=warmup, weight_decay=decay)
+
 
     for step_idx in range(10):
         print(step_idx)
         optimizer.train()
+        optimizer_ref.train()
+
         grad = torch.rand_like(weight)
 
         weight.grad = torch.clone(grad)
+        weight_ref.grad = torch.clone(grad)
 
         def closure():
             weight_closure.grad = torch.clone(grad)
 
         optimizer.step()
         optimizer_closure.step(closure=closure)
+        optimizer_ref.step()
 
         optimizer.eval()
+        optimizer_ref.eval()
 
-        for group_closure, group in zip(optimizer_closure.param_groups, optimizer.param_groups):
-            for p_closure, p in zip(group_closure['params'], group['params']):
+        for group_closure, group, group_ref in zip(
+                optimizer_closure.param_groups, 
+                optimizer.param_groups, 
+                optimizer_ref.param_groups):
+            for p_closure, p, p_ref in zip(
+                    group_closure['params'],
+                    group['params'], 
+                    group_ref['params']):
+                
                 state_closure = optimizer_closure.state[p_closure]
+                state_ref = optimizer_ref.state[p_ref]
                 state = optimizer.state[p]
 
                 assert torch.allclose(p, p_closure)
+                assert torch.allclose(p, p_ref)
 
                 z_closure = state_closure['z']
+                z_ref = state_ref['z']
                 z = state['z']
                 assert torch.allclose(z, z_closure)
+                assert torch.allclose(z, z_ref)
  
 def test_schedulefree_adam():
     decay = 0.5
