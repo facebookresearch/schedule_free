@@ -69,11 +69,13 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
                         train_mode=True,
                         weight_sum=0.0,
                         lr_max=-1.0,
+                        scheduled_lr=0.0,
                         weight_lr_power=weight_lr_power,
                         weight_decay=weight_decay,
                         foreach=foreach)
         super().__init__(params, defaults)
     
+    @torch.no_grad()
     def eval(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
@@ -81,10 +83,11 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
                 for p in group['params']:
                     state = self.state[p]
                     if 'x' in state:
-                        # Set p.data to x
-                        p.data.copy_(state['x'])
+                        # Set p to x
+                        p.copy_(state['x'])
                 group['train_mode'] = False
 
+    @torch.no_grad()
     def train(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
@@ -92,10 +95,11 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
                 for p in group['params']:
                     state = self.state[p]
                     if 'y' in state:
-                        # Set p.data to y
-                        p.data.copy_(state['y'])
+                        # Set p to y
+                        p.copy_(state['y'])
                 group['train_mode'] = True
 
+    @torch.no_grad()
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -103,10 +107,15 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
+        if not self.param_groups[0]['train_mode']:
+            raise Exception("Optimizer was not in train mode when step is called. "
+                            "Please insert .train() and .eval() calls on the "
+                            "optimizer. See documentation for details.")
 
         loss = None
         if closure is not None:
-            loss = closure()
+            with torch.enable_grad():
+                loss = closure()
         
         for group in self.param_groups:
             momentum = group['momentum']
@@ -120,6 +129,7 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
             else:
               sched = 1.0
             lr = group['lr']*sched
+            group['scheduled_lr'] = lr # For logging purposes
 
             weight_lr_power = group['weight_lr_power']
             
@@ -134,20 +144,17 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
             except ZeroDivisionError:
                 ckp1 = 0
 
-            if not group['train_mode']:
-                raise Exception("Not in train mode!")
-
             for p in group['params']:
                 if p.grad is None:
                     continue
 
-                grad = p.grad.data
+                grad = p.grad
                 state = self.state[p]
 
                 if 'z' not in state:
-                    state['z'] = torch.clone(p.data)
-                    state['x'] = torch.clone(p.data)
-                    state['y'] = torch.clone(p.data) 
+                    state['z'] = torch.clone(p, memory_format=torch.preserve_format)
+                    state['x'] = torch.clone(p, memory_format=torch.preserve_format)
+                    state['y'] = torch.clone(p, memory_format=torch.preserve_format) 
 
                 z = state['z']
                 x = state['x']
@@ -165,7 +172,7 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
 
                 # Compute y
                 y.copy_(x.mul(momentum).add_(z, alpha=1-momentum))
-                p.data.copy_(y)
+                p.copy_(y)
 
             group['k'] = k+1
         return loss

@@ -3,7 +3,7 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Union, Optional, Iterable, Dict, Any
+from typing import Union, Optional, Iterable, Dict, Callable, Any
 from typing_extensions import TypeAlias
 import torch
 import torch.optim
@@ -65,14 +65,16 @@ class SGDScheduleFree(torch.optim.Optimizer):
                         r=r,
                         k=0,
                         warmup_steps=warmup_steps,
-                        train_mode=True,
+                        train_mode=False,
                         weight_sum=0.0,
                         lr_max=-1.0,
+                        scheduled_lr=0.0,
                         weight_lr_power=weight_lr_power,
                         weight_decay=weight_decay,
                         foreach=foreach)
         super().__init__(params, defaults)
     
+    @torch.no_grad()
     def eval(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
@@ -81,10 +83,11 @@ class SGDScheduleFree(torch.optim.Optimizer):
                 for p in group['params']:
                     state = self.state[p]
                     if 'z' in state:
-                        # Set p.data to x
-                        p.data.lerp_(end=state['z'].to(p.data.device), weight=1-1/momentum)
+                        # Set p to x
+                        p.lerp_(end=state['z'].to(p.device), weight=1-1/momentum)
                 group['train_mode'] = False
 
+    @torch.no_grad()
     def train(self):
         for group in self.param_groups:
             train_mode = group['train_mode']
@@ -93,21 +96,28 @@ class SGDScheduleFree(torch.optim.Optimizer):
                 for p in group['params']:
                     state = self.state[p]
                     if 'z' in state:
-                        # Set p.data to y
-                        p.data.lerp_(end=state['z'].to(p.data.device), weight=1-momentum)
+                        # Set p to y
+                        p.lerp_(end=state['z'].to(p.device), weight=1-momentum)
                 group['train_mode'] = True
 
-    def step(self, closure=None):
+    @torch.no_grad()
+    def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         """Performs a single optimization step.
 
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
+        if not self.param_groups[0]['train_mode']:
+            raise Exception("Optimizer was not in train mode when step is called. "
+                            "Please insert .train() and .eval() calls on the "
+                            "optimizer. See documentation for details.")
+
 
         loss = None
         if closure is not None:
-            loss = closure()
+            with torch.enable_grad():
+                loss = closure()
         
         for group in self.param_groups:
             momentum = group['momentum']
@@ -121,6 +131,7 @@ class SGDScheduleFree(torch.optim.Optimizer):
             else:
               sched = 1.0
             lr = group['lr']*sched
+            group['scheduled_lr'] = lr # For logging purposes
 
             weight_lr_power = group['weight_lr_power']
             
@@ -135,17 +146,14 @@ class SGDScheduleFree(torch.optim.Optimizer):
             except ZeroDivisionError:
                 ckp1 = 0
 
-            if not group['train_mode']:
-                raise Exception("Not in train mode!")
-
             active_p = [p for p in group['params'] if p.grad is not None]
 
             for p in active_p:
                 if 'z' not in self.state[p]:
-                    self.state[p]['z'] = torch.clone(p.data)
+                    self.state[p]['z'] = torch.clone(p, memory_format=torch.preserve_format)
 
             if group['foreach'] and len(active_p) > 0:
-                y, grad, z = zip(*[(p.data, p.grad, self.state[p]['z']) 
+                y, grad, z = zip(*[(p, p.grad, self.state[p]['z']) 
                                 for p in active_p])
 
                 # Apply weight decay
@@ -161,8 +169,8 @@ class SGDScheduleFree(torch.optim.Optimizer):
                 torch._foreach_sub_(z, grad, alpha=lr)
             else:
                 for p in active_p:
-                    y = p.data # Notation to match theory
-                    grad = p.grad.data
+                    y = p # Notation to match theory
+                    grad = p.grad
                     z = self.state[p]['z']
 
                     # Apply weight decay

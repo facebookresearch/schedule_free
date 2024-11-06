@@ -112,8 +112,9 @@ class ScheduleFreeWrapper:
     @torch.no_grad()
     def step(self, closure=None):
         if not self.train_mode:
-            raise Exception("Please insert .train() and .eval() calls for the "
-                            "optimizer. See documentation for details")
+            raise Exception("Optimizer was not in train mode when step is called. "
+                            "Please insert .train() and .eval() calls on the "
+                            "optimizer. See documentation for details.")
 
         loss = None
         if closure is not None:
@@ -128,7 +129,7 @@ class ScheduleFreeWrapper:
                 state = self.state[p]
 
                 if 'z' not in state:
-                    state['z'] = torch.clone(p)
+                    state['z'] = torch.clone(p, memory_format=torch.preserve_format)
 
                 z = state['z']
 

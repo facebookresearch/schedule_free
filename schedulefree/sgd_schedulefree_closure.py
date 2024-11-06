@@ -3,7 +3,7 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Union, Optional, Iterable, Dict, Any
+from typing import Union, Optional, Iterable, Dict, Callable, Any
 from typing_extensions import TypeAlias
 import torch
 import torch.optim
@@ -69,11 +69,13 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             weight_sum=0.0,
             weight_lr_power=weight_lr_power,
             lr_max=0.0,
+            scheduled_lr=0.0,
             foreach=foreach
         )
         super().__init__(params, defaults)
 
-    def step(self, closure=None):
+    @torch.no_grad()
+    def step(self, closure: Callable[[], float]) -> Optional[float]:
         """
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
@@ -86,11 +88,11 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             for p in group['params']:
                 # State initialization
                 if 'z' not in self.state[p]:
-                    self.state[p]['z'] = torch.clone(p.data)
+                    self.state[p]['z'] = torch.clone(p, memory_format=torch.preserve_format)
 
             if group['foreach']:
                 if len(group['params']) > 0:
-                    y, z = zip(*[(p.data, self.state[p]['z']) for p in group['params']])
+                    y, z = zip(*[(p, self.state[p]['z']) for p in group['params']])
 
                     torch._foreach_lerp_(y, z, weight=1-momentum)
 
@@ -99,10 +101,11 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                     z = self.state[p]['z']
 
                     # Extrapolate, replacing p with y temporarily
-                    p.data.lerp_(end=z, weight=1-momentum)
+                    p.lerp_(end=z, weight=1-momentum)
 
         # Evaluate gradient at extrapolated point
-        loss = closure()
+        with torch.enable_grad():
+            loss = closure()
 
         for group in self.param_groups:
             weight_decay = group['weight_decay']
@@ -115,6 +118,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             else:
               sched = 1.0
             lr = group['lr']*sched
+            group['scheduled_lr'] = lr # For logging purposes
 
             weight_lr_power = group['weight_lr_power']
             
@@ -132,7 +136,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
             active_p = [p for p in group['params'] if p.grad is not None]
 
             if group['foreach'] and len(active_p) > 0:
-                y, grad, z = zip(*[(p.data, 
+                y, grad, z = zip(*[(p, 
                                     p.grad, 
                                     self.state[p]['z']) 
                                     for p in active_p])
@@ -151,8 +155,8 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                 torch._foreach_lerp_(y, z, weight=ckp1)
             else:
                 for p in active_p:
-                    grad = p.grad.data
-                    y = p.data # Notation to match theory
+                    grad = p.grad
+                    y = p # Notation to match theory
                     
                     # Weight decay calculated at y.
                     if weight_decay != 0:
@@ -165,7 +169,7 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                     x = y.lerp_(end=z, weight=1-1/momentum)
 
                     # Main step
-                    z.data.sub_(grad, alpha=lr)
+                    z.sub_(grad, alpha=lr)
 
                     # x moving average update
                     x.lerp_(end=z, weight=ckp1)
