@@ -1,4 +1,6 @@
 # Schedule-Free Learning
+[![Downloads](https://static.pepy.tech/badge/schedulefree)](https://pepy.tech/project/schedulefree) [![Downloads](https://static.pepy.tech/badge/schedulefree/month)](https://pepy.tech/project/schedulefree)
+
 Schedule-Free Optimizers in PyTorch.
 
 Preprint: [The Road Less Scheduled](https://arxiv.org/abs/2405.15682)
