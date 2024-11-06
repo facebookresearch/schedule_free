@@ -152,9 +152,9 @@ class SGDScheduleFreeReference(torch.optim.Optimizer):
                 state = self.state[p]
 
                 if 'z' not in state:
-                    state['z'] = torch.clone(p)
-                    state['x'] = torch.clone(p)
-                    state['y'] = torch.clone(p) 
+                    state['z'] = torch.clone(p, memory_format=torch.preserve_format)
+                    state['x'] = torch.clone(p, memory_format=torch.preserve_format)
+                    state['y'] = torch.clone(p, memory_format=torch.preserve_format) 
 
                 z = state['z']
                 x = state['x']
