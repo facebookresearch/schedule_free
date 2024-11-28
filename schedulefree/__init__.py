@@ -3,6 +3,8 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
+from .radam_schedulefree_closure import RAdamScheduleFreeClosure
+from .radam_schedulefree import RAdamScheduleFree
 from .adamw_schedulefree_closure import AdamWScheduleFreeClosure
 from .adamw_schedulefree import AdamWScheduleFree
 from .adamw_schedulefree_reference import AdamWScheduleFreeReference
