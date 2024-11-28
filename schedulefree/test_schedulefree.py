@@ -189,13 +189,12 @@ def test_schedulefree_adam():
 
 def test_schedulefree_radam():
     decay = 0.5
-    warmup = 5
     weight_closure = torch.randn(3, 2).cuda().requires_grad_()
     weight = torch.clone(weight_closure.data).requires_grad_()
-    optimizer_closure = RAdamScheduleFreeClosure([weight_closure], lr=0.3, warmup_steps=warmup, weight_decay=decay)
-    optimizer = RAdamScheduleFree([weight], lr=0.3, warmup_steps=warmup, weight_decay=decay)
+    optimizer_closure = RAdamScheduleFreeClosure([weight_closure], lr=0.3, weight_decay=decay)
+    optimizer = RAdamScheduleFree([weight], lr=0.3, weight_decay=decay)
 
-    for step_idx in range(10):
+    for step_idx in range(20):
         print(step_idx)
         optimizer.train()
         grad = torch.rand_like(weight)
