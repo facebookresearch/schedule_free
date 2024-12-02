@@ -14,7 +14,7 @@ Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko,
 We provide several Schedule-Free optimizer implementations:
 - `SGDScheduleFree` and `SGDScheduleFreeReference`: Schedule-free variants of SGD
 - `AdamWScheduleFree` and `AdamWScheduleFreeReference`: Schedule-free variants of AdamW
-- `RAdamScheduleFree`: Schedule-free variant of RAdam, which eliminates the need for both learning rate scheduling and warmup setting
+- `RAdamScheduleFree`: Schedule-free variant of RAdam, which eliminates the need for both learning rate scheduling and warmup (implementation community contributed)
 - Experimental `ScheduleFreeWrapper` to combine with other optimizers
 
 `ScheduleFreeReference` versions have a simplified implementation, but which use more memory. There are also `ScheduleFreeClosure` versions which can be used with PyTorch's optimizer step closures.
@@ -59,7 +59,9 @@ If you use Schedule-Free training in your work, please cite our [preprint](https
 
 ### Releases
 
-*New* Version 1.3 changes the behavior of weight decay during learning rate warmup
+*New* Version 1.4 adds a RAdam implementation by [nhamanasu](https://github.com/nhamanasu).
+
+Version 1.3 changes the behavior of weight decay during learning rate warmup
 to improve stabiliy and be more consistant with the behavior of standard AdamW in PyTorch. The previous implementation is still available as `AdamWScheduleFreePaper`.
 
 ### Examples
