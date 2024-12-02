@@ -6,6 +6,7 @@
 import torch
 from schedulefree import (SGDScheduleFree, SGDScheduleFreeClosure, 
     AdamWScheduleFree, AdamWScheduleFreeClosure, AdamWScheduleFreeReference, 
+    RAdamScheduleFree, RAdamScheduleFreeClosure,
     ScheduleFreeWrapper, ScheduleFreeWrapperReference, SGDScheduleFreeReference)
 
 def allclose(x, y):
@@ -186,6 +187,55 @@ def test_schedulefree_adam():
                 allclose(y, y_closure)
                 allclose(y, p_reference.data)
 
+def test_schedulefree_radam():
+    decay = 0.5
+    weight_closure = torch.randn(3, 2).cuda().requires_grad_()
+    weight = torch.clone(weight_closure.data).requires_grad_()
+    optimizer_closure = RAdamScheduleFreeClosure([weight_closure], lr=0.3, weight_decay=decay)
+    optimizer = RAdamScheduleFree([weight], lr=0.3, weight_decay=decay)
+
+    for step_idx in range(20):
+        print(step_idx)
+        optimizer.train()
+        grad = torch.rand_like(weight)
+
+        weight.grad = torch.clone(grad)
+
+        def closure():
+            weight_closure.grad = torch.clone(grad)
+
+        optimizer.step()
+        optimizer_closure.step(closure=closure)
+
+        optimizer.eval()
+
+        for group_closure, group in zip(optimizer_closure.param_groups, optimizer.param_groups):
+            for p_closure, p in zip(group_closure['params'], group['params']):
+                state_closure = optimizer_closure.state[p_closure]
+                state = optimizer.state[p]
+
+                z_closure = state_closure['z']
+                z = state['z']
+
+                allclose(p, p_closure)
+                allclose(z, z_closure)
+ 
+        optimizer.train()
+
+        for group_closure, group in zip(optimizer_closure.param_groups, optimizer.param_groups):
+            for p_closure, p in zip(group_closure['params'], group['params']):
+                state_closure = optimizer_closure.state[p_closure]
+                state = optimizer.state[p]
+
+                z_closure = state_closure['z']
+                z = state['z']
+
+                # Extrapolate p.data to equal y
+                y = p.data
+                y_closure = p_closure.lerp(end=z_closure, weight=1-0.9)
+
+                allclose(y, y_closure)
+
 def test_foreach():
     decay = 0.5
     warmup = 5
@@ -324,3 +374,4 @@ if __name__ == "__main__":
 
     test_schedulefree_adam()
     test_schedulefree_sgd()
+    test_schedulefree_radam()

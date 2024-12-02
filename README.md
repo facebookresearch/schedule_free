@@ -11,7 +11,13 @@ Authors: Aaron Defazio, Xingyu (Alice) Yang, Harsh Mehta, Konstantin Mishchenko,
 
 ``` pip install schedulefree ```
 
-Primary implementations are `SGDScheduleFree` and `AdamWScheduleFree`. We also have `AdamWScheduleFreeReference` and `SGDScheduleFreeReference` versions which have a simplified implementation, but which use more memory. To combine with other optimizers, use the experimental ScheduleFreeWrapper version.
+We provide several Schedule-Free optimizer implementations:
+- `SGDScheduleFree` and `SGDScheduleFreeReference`: Schedule-free variants of SGD
+- `AdamWScheduleFree` and `AdamWScheduleFreeReference`: Schedule-free variants of AdamW
+- `RAdamScheduleFree`: Schedule-free variant of RAdam, which eliminates the need for both learning rate scheduling and warmup setting
+- Experimental `ScheduleFreeWrapper` to combine with other optimizers
+
+`ScheduleFreeReference` versions have a simplified implementation, but which use more memory. There are also `ScheduleFreeClosure` versions which can be used with PyTorch's optimizer step closures.
 
 A [Jax implementation](https://optax.readthedocs.io/en/latest/api/contrib.html#schedule-free) is availiable as part of Optax.
 
