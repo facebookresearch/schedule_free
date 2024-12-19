@@ -3,14 +3,10 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Tuple, Union, Optional, Iterable, Dict, Callable, Any
-from typing_extensions import TypeAlias
+from typing import Tuple, Union, Optional, Callable
 import torch.optim
-try:
-    from torch.optim.optimizer import ParamsT
-except ImportError:
-    ParamsT : TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
-import math
+
+from torch.optim.optimizer import ParamsT
 
 class RAdamScheduleFreeClosure(torch.optim.Optimizer):
     r"""
@@ -47,6 +43,12 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
             This helps stabilize training by ensuring smoother warmup behavior and more reliable
             calculation of the moving average coefficient (`ckp1`). Recommended to set to True
             (default True).
+        cautious (bool, experimental): If True, use a cautious update strategy, which is proposed
+            in https://arxiv.org/abs/2411.16085 and https://github.com/kyleliang919/C-Optim. If we 
+            directly apply cautious operation to z update, it's meaningless since z update doesn't 
+            contain momentum elements, so we apply cautious operations to y update, which means the 
+            combination of C-Optim and Schedule-Free is not obvious. In a few hands-on experiments, 
+            we found that this option can lead to slightly faster convergence.
     """
     def __init__(self,
                  params: ParamsT,
@@ -57,7 +59,8 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
                  r: float = 0,
                  weight_lr_power: float = 2.0,
                  foreach: Optional[bool] = hasattr(torch, "_foreach_mul_"),
-                 silent_sgd_phase: bool = True
+                 silent_sgd_phase: bool = True,
+                 cautious: bool = True,
                  ):
         defaults = dict(lr=lr,
                         betas=betas,
@@ -70,7 +73,8 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
                         weight_lr_power=weight_lr_power,
                         weight_decay=weight_decay,
                         foreach=foreach,
-                        silent_sgd_phase=silent_sgd_phase)
+                        silent_sgd_phase=silent_sgd_phase,
+                        cautious=cautious)
 
         super().__init__(params, defaults)
 
@@ -117,6 +121,7 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
             step = k + 1
             r = group['r']
             silent_sgd_phase = group["silent_sgd_phase"]
+            cautious = group["cautious"]
             decay = group['weight_decay']
             beta1, beta2 = group['betas']
             weight_lr_power = group['weight_lr_power']
@@ -174,13 +179,25 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
                 if decay != 0:
                     torch._foreach_add_(grad, y, alpha=decay)
 
-                # Unextrapolate
-                torch._foreach_lerp_(y, z, weight=1-1/beta1)
+                if cautious:
+                    u = torch._foreach_sub(y, z)
+                    torch._foreach_mul_(u, ckp1)
+                    torch._foreach_add_(u, grad, alpha=adaptive_y_lr)
+                    mask = torch._foreach_mul(u, grad)
+                    mask = [(m > 0).to(g.dtype) for m, g in zip(mask, grad)]
+                    torch._foreach_mul_(mask, [m.numel() / (m.sum() + 1) for m in mask])
+                    torch._foreach_mul_(u, mask)
+                    torch._foreach_sub_(y, u)
+                else:
+                    # These operations update y in-place,
+                    # without computing x explicitly.
+                    torch._foreach_lerp_(y, z, weight=ckp1)
+                    torch._foreach_sub_(y, grad, alpha=adaptive_y_lr)
 
                 torch._foreach_sub_(z, grad, alpha=lr)
 
-                ### Take step
-                torch._foreach_lerp_(y, z, weight=ckp1)
+                # Unextrapolate to x
+                torch._foreach_lerp_(y, z, weight=1-1/beta1)
             else:
                 for p in active_p:
                     grad = p.grad
@@ -198,22 +215,28 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
                         # Adam step
                         denom = exp_avg_sq.div(bias_correction2).sqrt_().add_(eps)
         
-                        grad_normalized = grad.div_(denom)
-                    else:
-                        # Fall back to SGD (or nothing)
-                        grad_normalized = grad
+                        grad.div_(denom)
 
                     # Weight decay calculated at y
                     if decay != 0:
-                        grad_normalized.add_(y, alpha=decay)
+                        grad.add_(y, alpha=decay)
 
-                    # Unextrapolate
-                    x = y.lerp_(end=z, weight=1-1/beta1)
+                    if cautious:
+                        u = (y - z).mul_(ckp1).add_(grad, alpha=adaptive_y_lr)
+                        mask = (u * grad > 0).to(grad.dtype)
+                        mask.mul_(mask.numel() / (mask.sum() + 1))
+                        u.mul_(mask)
+                        y.sub_(u)
+                    else:
+                        # These operations update y in-place,
+                        # without computing x explicitly.
+                        y.lerp_(end=z, weight=ckp1)
+                        y.sub_(grad, alpha=adaptive_y_lr)
 
-                    z.sub_(grad_normalized, alpha=lr)
+                    z.sub_(grad, alpha=lr)
 
-                    ### Take step
-                    x.lerp_(end=z, weight=ckp1)
+                    # Unextrapolate to x
+                    y.lerp_(end=z, weight=1-1/beta1)
 
             group['k'] = k+1
         return loss
