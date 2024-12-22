@@ -43,12 +43,16 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
             This helps stabilize training by ensuring smoother warmup behavior and more reliable
             calculation of the moving average coefficient (`ckp1`). Recommended to set to True
             (default True).
-        cautious (bool, experimental): If True, use a cautious update strategy, which is proposed
-            in https://arxiv.org/abs/2411.16085 and https://github.com/kyleliang919/C-Optim. If we 
-            directly apply cautious operation to z update, it's meaningless since z update doesn't 
-            contain momentum elements, so we apply cautious operations to y update, which means the 
-            combination of C-Optim and Schedule-Free is not obvious. In a few hands-on experiments, 
-            we found that this option can lead to slightly faster convergence.
+        cautious (bool, experimental): If True, applies a cautious update strategy as proposed in 
+            https://arxiv.org/abs/2411.16085 and implemented in https://github.com/kyleliang919/C-Optim. 
+            While the original cautious optimizer aligns momentum updates with gradient directions
+            for faster convergence, our implementation differs in its combination with Schedule-Free 
+            optimization. Since the z-update in Schedule-Free doesn't contain momentum terms, directly 
+            applying cautious mask to z-update is meaningless. Instead, we apply the cautious operations 
+            to the y-update (after implicit x contraction), as y represents the training parameters 
+            where cautious update is more appropriate. Our preliminary experiments suggest this adaptation 
+            can lead to slightly faster convergence, though the theoretical implications of combining 
+            these approaches remain to be fully understood (default: True).            
     """
     def __init__(self,
                  params: ParamsT,

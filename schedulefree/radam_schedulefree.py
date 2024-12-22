@@ -22,7 +22,7 @@ class RAdamScheduleFree(torch.optim.Optimizer):
             Iterable of parameters to optimize or dicts defining
             parameter groups.
         lr (float):
-            Learning rate parameter (default 0.0025)
+            Learning rate parameter (default: 0.0025)
         betas (Tuple[float, float], optional): coefficients used for computing
             running averages of gradient and its square (default: (0.9, 0.999)).
         eps (float):
@@ -31,25 +31,29 @@ class RAdamScheduleFree(torch.optim.Optimizer):
         weight_decay (float):
             Weight decay, i.e. a L2 penalty (default: 0).
         r (float): Use polynomial weighting in the average
-            with power r (default 0).
+            with power r (default: 0).
         weight_lr_power (float): During warmup, the weights in the average will
             be equal to lr raised to this power. Set to 0 for no weighting
-            (default 2.0).
+            (default: 2.0).
         foreach (bool): Use a foreach-backed implementation of the optimizer.
             Should be significantly faster, but will have higher peak memory
-            usage (default True if supported in your PyTorch version).
+            usage (default: True, if supported in your PyTorch version).
         silent_sgd_phase (bool): If True, the optimizer will not use the first SGD phase of RAdam.
             This means that the optimizer will not update model parameters during the early training
             steps (e.g., < 5 when β_2 = 0.999), but just update the momentum values of the optimizer.
             This helps stabilize training by ensuring smoother warmup behavior and more reliable
             calculation of the moving average coefficient (`ckp1`). Recommended to set to True
-            (default True).
-        cautious (bool, experimental): If True, use a cautious update strategy, which is proposed
-            in https://arxiv.org/abs/2411.16085 and https://github.com/kyleliang919/C-Optim. If we 
-            directly apply cautious operation to z update, it's meaningless since z update doesn't 
-            contain momentum elements, so we apply cautious operations to y update, which means the 
-            combination of C-Optim and Schedule-Free is not obvious. In a few hands-on experiments, 
-            we found that this option can lead to slightly faster convergence.
+            (default: True).
+        cautious (bool, experimental): If True, applies a cautious update strategy as proposed in 
+            https://arxiv.org/abs/2411.16085 and implemented in https://github.com/kyleliang919/C-Optim. 
+            While the original cautious optimizer aligns momentum updates with gradient directions
+            for faster convergence, our implementation differs in its combination with Schedule-Free 
+            optimization. Since the z-update in Schedule-Free doesn't contain momentum terms, directly 
+            applying cautious mask to z-update is meaningless. Instead, we apply the cautious operations 
+            to the y-update (after implicit x contraction), as y represents the training parameters 
+            where cautious update is more appropriate. Our preliminary experiments suggest this adaptation 
+            can lead to slightly faster convergence, though the theoretical implications of combining 
+            these approaches remain to be fully understood (default: True).            
     """
 
     def __init__(self,
