@@ -52,7 +52,7 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
             to the y-update (after implicit x contraction), as y represents the training parameters 
             where cautious update is more appropriate. Our preliminary experiments suggest this adaptation 
             can lead to slightly faster convergence, though the theoretical implications of combining 
-            these approaches remain to be fully understood (default: True).            
+            these approaches remain to be fully understood (default: False).            
     """
     def __init__(self,
                  params: ParamsT,
@@ -64,7 +64,7 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
                  weight_lr_power: float = 2.0,
                  foreach: Optional[bool] = hasattr(torch, "_foreach_mul_"),
                  silent_sgd_phase: bool = True,
-                 cautious: bool = True,
+                 cautious: bool = False,
                  ):
         defaults = dict(lr=lr,
                         betas=betas,
