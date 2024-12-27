@@ -168,7 +168,7 @@ class RAdamScheduleFree(torch.optim.Optimizer):
             except ZeroDivisionError:
                 ckp1 = 0
 
-            adaptive_y_lr = lr * (beta1 * (1 - ckp1) - 1)
+            adaptive_y_lr = lr * (1 - beta1 * (1 - ckp1))
             active_p = [p for p in group["params"] if p.grad is not None]
 
             for p in active_p:
