@@ -151,10 +151,7 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
             weight = (step**r) * (lr_max**weight_lr_power)
             weight_sum = group['weight_sum'] = group['weight_sum'] + weight
 
-            try:
-                ckp1 = weight/weight_sum
-            except ZeroDivisionError:
-                ckp1 = 0
+            ckp1 = weight / weight_sum if weight_sum > 0 else 0
 
             adaptive_y_lr = lr * (1 - beta1 * (1 - ckp1))
             active_p = [p for p in group['params'] if p.grad is not None]
