@@ -5,8 +5,28 @@
 # LICENSE file in the root directory of this source tree.
 
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "schedulefree"
+version = "1.4.0"
+authors = [{ name = "Aaron Defazio", email = "adefazio@meta.com" }]
+description = "Schedule Free Learning in PyTorch"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    'License :: OSI Approved :: Apache Software License',
+    "Operating System :: OS Independent",
 ]
-build-backend = "setuptools.build_meta"
+requires-python = ">=3.4"
+dependencies = [
+    "torch", 
+    "typing_extensions",
+]
+
+[project.urls]
+Source = "https://github.com/facebookresearch/schedule_free"
+
+[tool.hatch.build.targets.wheel]
+packages = ["schedulefree"]
