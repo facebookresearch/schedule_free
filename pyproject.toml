@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "schedulefree"
-version = "1.4.0"
+version = "1.4.1"
 authors = [{ name = "Aaron Defazio", email = "adefazio@meta.com" }]
 description = "Schedule Free Learning in PyTorch"
 readme = "README.md"
