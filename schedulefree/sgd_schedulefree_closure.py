@@ -85,23 +85,22 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
         for group in self.param_groups:
             momentum = group['momentum']
 
-            for p in group['params']:
-                # State initialization
-                if 'z' not in self.state[p]:
-                    self.state[p]['z'] = torch.clone(p, memory_format=torch.preserve_format)
-
+            # extrapolate only those params that were already updated at least once by the optimizer,
+            # i.e. that have "z" in state
             if group['foreach']:
-                if len(group['params']) > 0:
-                    y, z = zip(*[(p, self.state[p]['z']) for p in group['params']])
+                params_with_history = [(p, self.state[p]['z']) for p in group['params'] if "z" in self.state[p]]
+                if len(params_with_history) > 0:
+                    y, z = zip(*params_with_history)
 
                     torch._foreach_lerp_(y, z, weight=1-momentum)
 
             else:
                 for p in group['params']:
-                    z = self.state[p]['z']
+                    if "z" in self.state[p]:
+                        z = self.state[p]['z']
 
-                    # Extrapolate, replacing p with y temporarily
-                    p.lerp_(end=z, weight=1-momentum)
+                        # Extrapolate, replacing p with y temporarily
+                        p.lerp_(end=z, weight=1-momentum)
 
         # Evaluate gradient at extrapolated point
         with torch.enable_grad():
@@ -134,6 +133,13 @@ class SGDScheduleFreeClosure(torch.optim.Optimizer):
                 ckp1 = 0
 
             active_p = [p for p in group['params'] if p.grad is not None]
+            # State initialization for params receiving grads (and thus being updated) for the
+            # first time
+            for p in active_p:
+                state = self.state[p]
+                if 'z' not in state and p.grad is not None:
+                    state['z'] = torch.clone(p, memory_format=torch.preserve_format)
+
 
             if group['foreach'] and len(active_p) > 0:
                 y, grad, z = zip(*[(p, 
