@@ -15,7 +15,7 @@ def allclose(x, y):
 def test_schedulefree_wrapper():
     lr = 0.3
     decay = 0.1
-    weight1 = torch.randn(3, 2).cuda().requires_grad_()
+    weight1 = torch.randn(3, 2).requires_grad_()
     weight2 = torch.clone(weight1.detach()).requires_grad_()
     optimizer1 = SGDScheduleFree(
         [weight1], lr=lr, 
@@ -32,7 +32,7 @@ def test_schedulefree_wrapper():
 def test_schedulefree_wrapper_reference():
     lr = 0.3
     decay = 0.1
-    weight1 = torch.randn(3, 2).cuda().requires_grad_()
+    weight1 = torch.randn(3, 2).requires_grad_()
     weight2 = torch.clone(weight1.detach()).requires_grad_()
     optimizer1 = SGDScheduleFree(
         [weight1], lr=lr, 
@@ -72,7 +72,7 @@ def compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2):
 def test_schedulefree_sgd():
     decay = 0.5
     warmup = 5
-    weight_closure = torch.randn(3, 2).cuda().requires_grad_()
+    weight_closure = torch.randn(3, 2).requires_grad_()
     weight = torch.clone(weight_closure.data).requires_grad_()
     weight_ref = torch.clone(weight_closure.data).requires_grad_()
     optimizer_closure = SGDScheduleFreeClosure([weight_closure], lr=0.3, warmup_steps=warmup, weight_decay=decay)
@@ -125,7 +125,7 @@ def test_schedulefree_sgd():
 def test_schedulefree_adam():
     decay = 0.5
     warmup = 5
-    weight_closure = torch.randn(3, 2).cuda().requires_grad_()
+    weight_closure = torch.randn(3, 2).requires_grad_()
     weight = torch.clone(weight_closure.data).requires_grad_()
     weight_reference = torch.clone(weight_closure.data).requires_grad_()
     optimizer_closure = AdamWScheduleFreeClosure([weight_closure], lr=0.3, warmup_steps=warmup, weight_decay=decay)
@@ -189,7 +189,7 @@ def test_schedulefree_adam():
 
 def test_schedulefree_radam():
     decay = 0.5
-    weight_closure = torch.randn(3, 2).cuda().requires_grad_()
+    weight_closure = torch.randn(3, 2).requires_grad_()
     weight = torch.clone(weight_closure.data).requires_grad_()
     optimizer_closure = RAdamScheduleFreeClosure([weight_closure], lr=0.3, weight_decay=decay)
     optimizer = RAdamScheduleFree([weight], lr=0.3, weight_decay=decay)
@@ -239,9 +239,9 @@ def test_schedulefree_radam():
 def test_foreach():
     decay = 0.5
     warmup = 5
-    weight_foreach = torch.randn(3, 2).cuda().requires_grad_()
-    weight_foreach2 = torch.randn(1, 1).cuda().requires_grad_()
-    weight_foreach_nograd = torch.randn(1, 2).cuda().requires_grad_()
+    weight_foreach = torch.randn(3, 2).requires_grad_()
+    weight_foreach2 = torch.randn(1, 1).requires_grad_()
+    weight_foreach_nograd = torch.randn(1, 2).requires_grad_()
 
     weight = torch.clone(weight_foreach.data).requires_grad_()
     weight2 = torch.clone(weight_foreach2.data).requires_grad_()
@@ -322,7 +322,7 @@ def test_compile():
     lr = 0.3
     decay = 0.5
     warmup = 5
-    weight = torch.randn(3, 2).cuda().requires_grad_()
+    weight = torch.randn(3, 2).requires_grad_()
     weight_uncompiled = torch.clone(weight.data).requires_grad_()
     optimizer = AdamWScheduleFree([weight], lr=lr, warmup_steps=warmup, weight_decay=decay)
     optimizer_uncompiled = AdamWScheduleFree([weight_uncompiled], lr=lr, warmup_steps=warmup, weight_decay=decay)
