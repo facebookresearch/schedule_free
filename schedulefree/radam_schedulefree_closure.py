@@ -88,24 +88,21 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
             r = group['r']
             k = group['k']
 
-            for p in group['params']:
-                # State initialization
-                state = self.state[p]
-                if 'z' not in state:
-                    state['z'] = torch.clone(p, memory_format=torch.preserve_format)
-                    state['exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
-
+            # extrapolate only those params that were already updated at least once by the optimizer,
+            # i.e. that have "z" in state
             if group['foreach']:
-                if len(group['params']) > 0:
-                    y, z = zip(*[(p, self.state[p]['z']) for p in group['params']])
+                params_with_history = [(p, self.state[p]['z']) for p in group['params'] if "z" in self.state[p]]
+                if len(params_with_history) > 0:
+                    y, z = zip(*params_with_history)
 
                     torch._foreach_lerp_(y, z, weight=1-beta1)
             else:
                 for p in group['params']:
-                    z = self.state[p]['z']
+                    if "z" in self.state[p]:
+                        z = self.state[p]['z']
 
-                    # Extrapolate p to equal y
-                    p.lerp_(end=z, weight=1-beta1)
+                        # Extrapolate p to equal y
+                        p.lerp_(end=z, weight=1-beta1)
 
         # Evaluate gradient at extrapolated point
         with torch.enable_grad():
@@ -149,6 +146,13 @@ class RAdamScheduleFreeClosure(torch.optim.Optimizer):
 
             adaptive_y_lr = lr * (beta1 * (1 - ckp1) - 1)
             active_p = [p for p in group['params'] if p.grad is not None]
+            # State initialization for params receiving grads (and thus being updated) for the
+            # first time
+            for p in active_p:
+                state = self.state[p]
+                if 'z' not in state and p.grad is not None:
+                    state['z'] = torch.clone(p, memory_format=torch.preserve_format)
+                    state['exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
             if group['foreach'] and len(active_p) > 0:
                 y, grad, exp_avg_sq, z = zip(*[(p, 
