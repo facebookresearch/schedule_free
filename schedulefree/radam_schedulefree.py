@@ -3,15 +3,10 @@
 # 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-from typing import Tuple, Union, Optional, Iterable, Dict, Callable, Any
-from typing_extensions import TypeAlias
+from typing import Tuple, Union, Optional, Callable
 import torch
 import torch.optim
-try:
-    from torch.optim.optimizer import ParamsT
-except ImportError:
-    ParamsT : TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
-import math
+from torch.optim.optimizer import ParamsT
 
 class RAdamScheduleFree(torch.optim.Optimizer):
     r"""
@@ -27,7 +22,7 @@ class RAdamScheduleFree(torch.optim.Optimizer):
             Iterable of parameters to optimize or dicts defining
             parameter groups.
         lr (float):
-            Learning rate parameter (default 0.0025)
+            Learning rate parameter (default: 0.0025)
         betas (Tuple[float, float], optional): coefficients used for computing
             running averages of gradient and its square (default: (0.9, 0.999)).
         eps (float):
@@ -36,19 +31,29 @@ class RAdamScheduleFree(torch.optim.Optimizer):
         weight_decay (float):
             Weight decay, i.e. a L2 penalty (default: 0).
         r (float): Use polynomial weighting in the average
-            with power r (default 0).
+            with power r (default: 0).
         weight_lr_power (float): During warmup, the weights in the average will
             be equal to lr raised to this power. Set to 0 for no weighting
-            (default 2.0).
+            (default: 2.0).
         foreach (bool): Use a foreach-backed implementation of the optimizer.
             Should be significantly faster, but will have higher peak memory
-            usage (default True if supported in your PyTorch version).
+            usage (default: True, if supported in your PyTorch version).
         silent_sgd_phase (bool): If True, the optimizer will not use the first SGD phase of RAdam.
             This means that the optimizer will not update model parameters during the early training
             steps (e.g., < 5 when β_2 = 0.999), but just update the momentum values of the optimizer.
             This helps stabilize training by ensuring smoother warmup behavior and more reliable
             calculation of the moving average coefficient (`ckp1`). Recommended to set to True
-            (default True).
+            (default: True).
+        cautious (bool, experimental): If True, applies a cautious update strategy as proposed in 
+            https://arxiv.org/abs/2411.16085 and implemented in https://github.com/kyleliang919/C-Optim. 
+            While the original cautious optimizer aligns momentum updates with gradient directions
+            for faster convergence, our implementation differs in its combination with Schedule-Free 
+            optimization. Since the z-update in Schedule-Free doesn't contain momentum terms, directly 
+            applying cautious mask to z-update is meaningless. Instead, we apply the cautious operations 
+            to the y-update (after implicit x contraction), as y represents the training parameters 
+            where cautious update is more appropriate. Our preliminary experiments suggest this adaptation 
+            can lead to slightly faster convergence, though the theoretical implications of combining 
+            these approaches remain to be fully understood (default: False).            
     """
 
     def __init__(self,
@@ -60,7 +65,8 @@ class RAdamScheduleFree(torch.optim.Optimizer):
                  r: float = 0.0,
                  weight_lr_power: float = 2.0,
                  foreach: Optional[bool] = hasattr(torch, "_foreach_mul_"),
-                 silent_sgd_phase: bool = True
+                 silent_sgd_phase: bool = True,
+                 cautious: bool = False,
                  ):
         
         defaults = dict(lr=lr,
@@ -75,7 +81,8 @@ class RAdamScheduleFree(torch.optim.Optimizer):
                         weight_lr_power=weight_lr_power,
                         weight_decay=weight_decay,
                         foreach=foreach,
-                        silent_sgd_phase=silent_sgd_phase)
+                        silent_sgd_phase=silent_sgd_phase,
+                        cautious=cautious)
         super().__init__(params, defaults)
 
     @torch.no_grad()
@@ -129,6 +136,7 @@ class RAdamScheduleFree(torch.optim.Optimizer):
             beta1, beta2 = group["betas"]
             decay = group["weight_decay"]
             silent_sgd_phase = group["silent_sgd_phase"]
+            cautious = group["cautious"]
             k = group["k"]  # current steps
             step = k + 1
             r = group['r']
@@ -155,12 +163,9 @@ class RAdamScheduleFree(torch.optim.Optimizer):
             weight = (step**r) * (lr_max**weight_lr_power)
             weight_sum = group["weight_sum"] = group["weight_sum"] + weight
 
-            try:
-                ckp1 = weight / weight_sum
-            except ZeroDivisionError:
-                ckp1 = 0
+            ckp1 = weight / weight_sum if weight_sum > 0 else 0
 
-            adaptive_y_lr = lr * (beta1 * (1 - ckp1) - 1)
+            adaptive_y_lr = lr * (1 - beta1 * (1 - ckp1))
             active_p = [p for p in group["params"] if p.grad is not None]
 
             for p in active_p:
@@ -189,11 +194,21 @@ class RAdamScheduleFree(torch.optim.Optimizer):
                 # Weight decay calculated at y
                 if decay != 0:
                     torch._foreach_add_(grad, y, alpha=decay)
-
-                # These operations update y in-place,
-                # without computing x explicitly.
-                torch._foreach_lerp_(y, z, weight=ckp1)
-                torch._foreach_add_(y, grad, alpha=adaptive_y_lr)
+                
+                if cautious:
+                    u = torch._foreach_sub(y, z)
+                    torch._foreach_mul_(u, ckp1)
+                    torch._foreach_add_(u, grad, alpha=adaptive_y_lr)
+                    mask = torch._foreach_mul(u, grad)
+                    mask = [(m > 0).to(g.dtype) for m, g in zip(mask, grad)]
+                    torch._foreach_mul_(mask, [m.numel() / (m.sum() + 1) for m in mask])
+                    torch._foreach_mul_(u, mask)
+                    torch._foreach_sub_(y, u)
+                else:
+                    # These operations update y in-place,
+                    # without computing x explicitly.
+                    torch._foreach_lerp_(y, z, weight=ckp1)
+                    torch._foreach_sub_(y, grad, alpha=adaptive_y_lr)
 
                 # z step
                 torch._foreach_sub_(z, grad, alpha=lr)
@@ -214,22 +229,26 @@ class RAdamScheduleFree(torch.optim.Optimizer):
                         denom = exp_avg_sq.div(bias_correction2).sqrt_().add_(eps)
 
                         # Reuse grad buffer for memory efficiency
-                        grad_normalized = grad.div_(denom)
-                    else:
-                        # Fall back to SGD (or nothing)
-                        grad_normalized = grad
+                        grad.div_(denom)
 
                     # Weight decay calculated at y
                     if decay != 0:
-                        grad_normalized.add_(y, alpha=decay)
+                        grad.add_(y, alpha=decay)
 
-                    # These operations update y in-place,
-                    # without computing x explicitly.
-                    y.lerp_(end=z, weight=ckp1)
-                    y.add_(grad_normalized, alpha=adaptive_y_lr)
+                    if cautious:
+                        u = (y - z).mul_(ckp1).add_(grad, alpha=adaptive_y_lr)
+                        mask = (u * grad > 0).to(grad.dtype)
+                        mask.mul_(mask.numel() / (mask.sum() + 1))
+                        u.mul_(mask)
+                        y.sub_(u)
+                    else:
+                        # These operations update y in-place,
+                        # without computing x explicitly.
+                        y.lerp_(end=z, weight=ckp1)
+                        y.sub_(grad, alpha=adaptive_y_lr)
 
                     # z step
-                    z.sub_(grad_normalized, alpha=lr)
+                    z.sub_(grad, alpha=lr)
 
             group["k"] = k + 1
         return loss
