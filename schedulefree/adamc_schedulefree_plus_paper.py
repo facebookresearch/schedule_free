@@ -157,7 +157,7 @@ class AdamCScheduleFreePlusPaper(torch.optim.Optimizer):
                  weight_decay: float = 0,
                  r: float = 0,
                  polyak_beta: float = 0,
-                 c_warmup: int = 0.9,
+                 c_warmup: int = 0,
                  sf_beta1_anneal_steps: int = 0,
                  sf_beta1_max: float = 0.965,
                  weight_lr_power: float = 2,
