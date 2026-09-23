@@ -11,6 +11,21 @@ try:
     from torch.optim.optimizer import ParamsT
 except ImportError:
     ParamsT : TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
+import math
+
+
+def _record_param_update(acc, y, z, grad_normalized, ckp1, alpha):
+    """Square-sum of y's step, from tensors the step already holds.
+
+    y_new - y = ckp1 * (z - y) + alpha * grad_normalized.
+    """
+    delta = torch.lerp(y, z, ckp1).add(grad_normalized, alpha=alpha).sub(y)
+    slot = acc.get(delta.device)
+    if slot is None:
+        slot = torch.zeros((), dtype=torch.float64, device=delta.device)
+        acc[delta.device] = slot
+    slot.add_(delta.detach().square().sum())
+
 
 class SGDScheduleFree(torch.optim.Optimizer):
     r"""
@@ -118,6 +133,9 @@ class SGDScheduleFree(torch.optim.Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
+
+        self._update_sq_acc = {}
+        self._update_numel = 0
         
         for group in self.param_groups:
             momentum = group['momentum']
@@ -160,10 +178,15 @@ class SGDScheduleFree(torch.optim.Optimizer):
                 if weight_decay != 0:
                     torch._foreach_add_(grad, y, alpha=weight_decay)
 
+                alpha = lr * (momentum * (1 - ckp1) - 1)
+                for yi, zi, gi in zip(y, z, grad):
+                    _record_param_update(self._update_sq_acc, yi, zi, gi, ckp1, alpha)
+                    self._update_numel += yi.numel()
+
                 # These operations update y in-place,
                 # without computing x explicitly.
                 torch._foreach_lerp_(y, z, weight=ckp1)
-                torch._foreach_add_(y, grad, alpha=lr*(momentum*(1-ckp1)-1))
+                torch._foreach_add_(y, grad, alpha=alpha)
 
                 # SGD step
                 torch._foreach_sub_(z, grad, alpha=lr)
@@ -177,13 +200,30 @@ class SGDScheduleFree(torch.optim.Optimizer):
                     if weight_decay != 0:
                         grad.add_(y, alpha=weight_decay)
 
+                    alpha = lr * (momentum * (1 - ckp1) - 1)
+                    _record_param_update(self._update_sq_acc, y, z, grad, ckp1, alpha)
+                    self._update_numel += y.numel()
+
                     # These operations update y in-place,
                     # without computing x explicitly.
                     y.lerp_(end=z, weight=ckp1)
-                    y.add_(grad, alpha=lr*(momentum*(1-ckp1)-1))
+                    y.add_(grad, alpha=alpha)
 
                     # SGD step
                     z.sub_(grad, alpha=lr)
 
             group['k'] = k+1
+
+        total_sq = sum((v.item() for v in self._update_sq_acc.values()), 0.0)
+        n = self._update_numel
+        self._update_rms = math.sqrt(total_sq / n) if n else 0.0
         return loss
+
+    @property
+    def update_rms(self):
+        """Root-mean-square of the last step's change in the training parameters.
+
+        None before the first step. This is the size of the parameter update,
+        not the gradient.
+        """
+        return getattr(self, "_update_rms", None)
