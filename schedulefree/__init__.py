@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 from .radam_schedulefree_closure import RAdamScheduleFreeClosure
 from .radam_schedulefree import RAdamScheduleFree
+from .ademamix_schedulefree import AdEMAMixScheduleFree
 from .adamw_schedulefree_closure import AdamWScheduleFreeClosure
 from .adamw_schedulefree import AdamWScheduleFree
 from .adamw_schedulefree_reference import AdamWScheduleFreeReference
