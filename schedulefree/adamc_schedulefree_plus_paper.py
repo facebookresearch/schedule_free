@@ -338,7 +338,8 @@ class AdamCScheduleFreePlusPaper(torch.optim.Optimizer):
             group_lr = lr*polyak_lr
 
             # For plotting
-            group['grad_l1_ema'] = group['grad_l1_ema_corr'] = grad_l1_ema_corr
+            group['grad_l1_ema'] = grad_l1_ema
+            group['grad_l1_ema_corr'] = grad_l1_ema_corr
             group['function_value_ema'] = global_function_value+ip_term
             group['ip_term'] = ip_term
             group['scheduled_lr'] = group_lr # For logging purposes
