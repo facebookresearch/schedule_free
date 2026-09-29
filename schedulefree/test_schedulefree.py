@@ -624,6 +624,26 @@ def test_adamc_schedulefree_polyak_multiple_param_groups():
     assert 'z' in optimizer.state[w2]
 
 
+def test_adamc_schedulefree_polyak_bias_correction():
+    """Verify that group['grad_l1_ema'] stores the raw uncorrected EMA,
+    while group['grad_l1_ema_corr'] stores the debiased value."""
+    torch.manual_seed(42)
+    weight = torch.randn(3, 2).requires_grad_()
+    optimizer = AdamCScheduleFreePlusPaper([weight], lr=1.0, polyak_beta=0.9)
+    optimizer.train()
+
+    weight.grad = torch.ones_like(weight)
+    optimizer.step_func(function_value=1.0)
+
+    group = optimizer.param_groups[0]
+    raw = group['grad_l1_ema']
+    corr = group['grad_l1_ema_corr']
+    # At step 1 (k=0), bias correction factor is 1 - 0.9^1 = 0.1
+    assert raw > 0
+    assert torch.isclose(torch.tensor(corr * (1.0 - 0.9)), torch.tensor(raw))
+    assert raw != corr
+
+
 if __name__ == "__main__":
     torch.manual_seed(1)
 
@@ -650,3 +670,4 @@ if __name__ == "__main__":
     test_adamc_schedulefree_polyak_requires_train_mode()
     test_adamc_schedulefree_polyak_no_dtensor_no_allreduce()
     test_adamc_schedulefree_polyak_multiple_param_groups()
+    test_adamc_schedulefree_polyak_bias_correction()
