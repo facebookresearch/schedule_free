@@ -46,6 +46,31 @@ def test_schedulefree_wrapper_reference():
 
     compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2)
 
+def test_schedulefree_wrapper_rmsprop():
+    """Verify ScheduleFreeWrapper works with torch.optim.RMSprop (the docstring example)."""
+    weight = torch.randn(3, 2).requires_grad_()
+    base_optimizer = torch.optim.RMSprop([weight], lr=0.0025)
+    optimizer = ScheduleFreeWrapper(base_optimizer, momentum=0.9, weight_decay_at_y=0.1)
+    optimizer.train()
+    for _ in range(5):
+        loss = (weight ** 2).sum()
+        loss.backward()
+        optimizer.step()
+        base_optimizer.zero_grad()
+    optimizer.eval()
+
+def test_schedulefree_wrapper_adamw():
+    """Verify ScheduleFreeWrapper works with torch.optim.AdamW without pre-initialization."""
+    weight = torch.randn(3, 2).requires_grad_()
+    base_optimizer = torch.optim.AdamW([weight], lr=0.001)
+    optimizer = ScheduleFreeWrapper(base_optimizer, momentum=0.9)
+    optimizer.train()
+    for _ in range(5):
+        loss = (weight ** 2).sum()
+        loss.backward()
+        optimizer.step()
+        base_optimizer.zero_grad()
+    optimizer.eval()
 def compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2):
     assert torch.allclose(weight1, weight2)
 
@@ -104,18 +129,6 @@ def test_adamw_reference_inner_momentum_matches_wrap():
         momentum=outer_momentum,
         weight_decay_at_y=0.0,
     )
-
-    # Pre-initialize AdamW's state. ScheduleFreeWrapperReference shares the
-    # state dict with the inner optimizer, so when the wrapper adds 'z', 'x',
-    # 'y' to the state, AdamW's `len(state) == 0` guard would otherwise skip
-    # initializing 'step', 'exp_avg', and 'exp_avg_sq'.
-    for p in [weight2]:
-        adamw_state = optimizer2.base.state[p]
-        adamw_state["step"] = torch.tensor(0.0)
-        adamw_state["exp_avg"] = torch.zeros_like(
-            p, memory_format=torch.preserve_format)
-        adamw_state["exp_avg_sq"] = torch.zeros_like(
-            p, memory_format=torch.preserve_format)
 
     compare_schedulefree_versions(weight1, optimizer1, weight2, optimizer2)
 
