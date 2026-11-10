@@ -103,6 +103,7 @@ class ScheduleFreeWrapperReference:
             with torch.enable_grad():
                 loss = closure()
 
+        saved_xyz = {}
         for group in self.param_groups:
             lr = group['lr']
             weight_decay_at_y = group['weight_decay_at_y']
@@ -124,11 +125,19 @@ class ScheduleFreeWrapperReference:
                 # Copy z into param buffer
                 p.copy_(z)
 
+                # Temporarily pop z, x, y so base optimizer's first-step state
+                # initialization (e.g. `len(state) == 0`) is not interfered with.
+                saved_xyz[p] = (state.pop('z'), state.pop('x'), state.pop('y'))
+
         #######
 
         # Run base optimizer, acting on params p, which are a copy of z
         self.base.step()
 
+        for p, (z, x, y) in saved_xyz.items():
+            self.state[p]['z'] = z
+            self.state[p]['x'] = x
+            self.state[p]['y'] = y
         ######
         for group in self.param_groups:
             weight_lr_power = self.weight_lr_power

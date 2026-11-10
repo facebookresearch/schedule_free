@@ -121,6 +121,7 @@ class ScheduleFreeWrapper:
             with torch.enable_grad():
                 loss = closure()
 
+        saved_z = {}
         for group in self.param_groups:
             lr = group['lr']
             for p in group['params']:
@@ -145,11 +146,16 @@ class ScheduleFreeWrapper:
                 self.swap(z, p)
 
                 # Now state['z'] is x and p is z.
+                # Temporarily pop z so base optimizer's first-step state
+                # initialization (e.g. `len(state) == 0`) is not interfered with.
+                saved_z[p] = state.pop('z')
 
         #######
         # Apply step to z
         self.base.step()
 
+        for p, z in saved_z.items():
+            self.state[p]['z'] = z
         ######
         for group in self.param_groups:
             weight_lr_power = self.weight_lr_power
