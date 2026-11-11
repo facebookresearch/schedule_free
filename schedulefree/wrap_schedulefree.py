@@ -5,8 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 import torch
 import torch.optim
+from ._wrapper_state import _WrapperStateMixin
 
-class ScheduleFreeWrapper:
+class ScheduleFreeWrapper(_WrapperStateMixin):
     r"""
         Wrap any optimizer to make it Schedule-Free. 
         
@@ -14,6 +15,11 @@ class ScheduleFreeWrapper:
         the performance difference is negligible.
         For the best possible performance and memory-usage, Schedule-Free needs 
         to be directly integrated with the base optimizer.
+
+        Wrapper iterate buffers are stored separately from the base optimizer's
+        state. ``wrapper.state`` provides a live combined mapping for inspection.
+        Use ``wrapper.state_dict()`` and ``wrapper.load_state_dict()`` to save and
+        restore both sets of buffers; the checkpoint format is unchanged.
 
         When using this version, you can disable the base optimizer's 
         momentum, as it's no longer necessary when using our wrapper's 
@@ -53,6 +59,7 @@ class ScheduleFreeWrapper:
                  r : float = 0):
 
         self.base = base
+        self._init_wrapper_state(('z',))
         self.weight_decay_at_y = weight_decay_at_y
         self.weight_lr_power = weight_lr_power
         self.r = r
@@ -63,22 +70,12 @@ class ScheduleFreeWrapper:
     def add_param_group(self, param_group):
         return self.base.add_param_group(param_group)
 
-    def load_state_dict(self, state_dict):
-        return self.base.load_state_dict(state_dict)
-
-    def state_dict(self):
-        return self.base.state_dict()
-        
     def zero_grad(self, set_to_none=True):
         return self.base.zero_grad(set_to_none)
 
     @property
     def param_groups(self):
         return self.base.param_groups
-
-    @property
-    def state(self):
-        return self.base.state
 
     @torch.no_grad()
     def eval(self):
