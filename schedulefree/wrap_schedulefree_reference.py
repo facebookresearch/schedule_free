@@ -5,14 +5,20 @@
 # LICENSE file in the root directory of this source tree.
 import torch
 import torch.optim
+from ._wrapper_state import _WrapperStateMixin
 from typing import Optional, Callable
 
-class ScheduleFreeWrapperReference:
+class ScheduleFreeWrapperReference(_WrapperStateMixin):
     r""" 
         Simplified reference implementation of ScheduleFreeWrapper.
         This version is easy to modify and numerically stable, it's a good
         place to start when doing more Research-orientated experimentation
         combining Schedule-Free with other optimizers.
+
+        Wrapper iterate buffers are stored separately from the base optimizer's
+        state. ``wrapper.state`` provides a live combined mapping for inspection.
+        Use ``wrapper.state_dict()`` and ``wrapper.load_state_dict()`` to save and
+        restore both sets of buffers; the checkpoint format is unchanged.
 
         base (torch.optim.Optimizer): 
             PyTorch optimizer object
@@ -34,6 +40,7 @@ class ScheduleFreeWrapperReference:
                  weight_lr_power : float = 2):
 
         self.base = base
+        self._init_wrapper_state(('x', 'y', 'z'))
 
         self.momentum = momentum
         self.weight_lr_power = weight_lr_power
@@ -46,22 +53,12 @@ class ScheduleFreeWrapperReference:
     def add_param_group(self, param_group):
         return self.base.add_param_group(param_group)
 
-    def load_state_dict(self, state_dict):
-        return self.base.load_state_dict(state_dict)
-
-    def state_dict(self):
-        return self.base.state_dict()
-        
     def zero_grad(self, set_to_none=True):
         return self.base.zero_grad(set_to_none)
 
     @property
     def param_groups(self):
         return self.base.param_groups
-
-    @property
-    def state(self):
-        return self.base.state
 
     @torch.no_grad()
     def eval(self):
